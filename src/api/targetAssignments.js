@@ -464,11 +464,17 @@ export const getUnitInProgressSummaryByMember = async (unitId, groupBy, label) =
 // GET /api/target_assignments/lead-assignments/all-teams/in-progress-by-year
 // Monitoring — in-progress counts per Unit → Member × Year received. Read-only.
 // ─────────────────────────────────────────────
-export const getInProgressYearMatrix = async (appType) => {
+// appType / entryType: "A|B|C" (selected values joined with "|")
+export const getInProgressYearMatrix = async (appType, entryType) => {
   try {
     const response = await API.get(
       "/target_assignments/lead-assignments/all-teams/in-progress-by-year",
-      { params: { app_type: appType || undefined } }
+      {
+        params: {
+          app_type: appType || undefined,
+          entry_type: entryType || undefined,
+        },
+      }
     );
     return response.data;
   } catch (error) {
@@ -490,6 +496,7 @@ export const getInProgressStepSummary = async ({
   memberUserId,
   year,
   appType,
+  entryType,
 } = {}) => {
   try {
     const response = await API.get(
@@ -500,6 +507,7 @@ export const getInProgressStepSummary = async ({
           member_user_id: memberUserId || undefined,
           year: year || undefined,
           app_type: appType || undefined,
+          entry_type: entryType || undefined,
         },
       }
     );

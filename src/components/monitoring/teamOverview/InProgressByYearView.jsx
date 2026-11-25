@@ -7,7 +7,7 @@
 // In the popup: DTN opens Doctrack; Actions open View Details /
 // Application Logs (same modals as Team Overview / Records).
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   getInProgressYearMatrix,
   getAllTeamsMemberInProgressTasks,
@@ -63,6 +63,161 @@ function useDebouncedValue(value, delayMs = 350) {
     return () => clearTimeout(id);
   }, [value, delayMs]);
   return debounced;
+}
+
+// Dropdown with a checkbox per option (multi-select). Empty selection = "all".
+function MultiSelect({
+  allLabel,
+  noun,
+  options, // [{ value, label }]
+  selected, // string[]
+  onChange,
+  colors,
+  buttonStyle,
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  const toggle = (value) =>
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+
+  const label =
+    selected.length === 0
+      ? allLabel
+      : selected.length === 1
+        ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
+        : `${selected.length} ${noun}`;
+  const active = selected.length > 0;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...buttonStyle,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          maxWidth: 220,
+          background: colors.cardBg,
+          color: active ? colors.accent : colors.textPrimary,
+          borderColor: active ? colors.accent : colors.cardBorder,
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: "0.6rem" }}>▾</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            right: 0,
+            marginTop: 4,
+            minWidth: 240,
+            maxWidth: 340,
+            maxHeight: 320,
+            overflowY: "auto",
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 8,
+            boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
+            padding: "0.35rem",
+            zIndex: 30,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "2px 6px 6px",
+              fontSize: "0.68rem",
+              color: colors.textTertiary,
+            }}
+          >
+            <span>{selected.length} selected</span>
+            {active && (
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: colors.accent,
+                  fontSize: "0.68rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {options.length === 0 && (
+            <div
+              style={{
+                padding: "6px",
+                fontSize: "0.74rem",
+                color: colors.textTertiary,
+              }}
+            >
+              No options
+            </div>
+          )}
+          {options.map((o) => (
+            <label
+              key={o.value}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: "5px 6px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "0.76rem",
+                color: colors.textPrimary,
+                background: selected.includes(o.value)
+                  ? "rgba(59,130,246,0.12)"
+                  : "transparent",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                style={{ marginTop: 2, accentColor: colors.accent }}
+              />
+              <span>{o.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -142,6 +297,7 @@ function DrilldownModal({
           memberUserId: isUnit ? undefined : drill.memberId,
           year: drill.year || undefined,
           appType: drill.appType || undefined,
+          entryType: drill.entryType || undefined,
         });
         if (!cancelled) setSteps(data || []);
       } catch (err) {
@@ -168,6 +324,7 @@ function DrilldownModal({
           dtn: debouncedSearch,
           step: stepFilter || undefined,
           appType: drill.appType || undefined,
+          entryType: drill.entryType || undefined,
           dateFrom: drill.year ? `${drill.year}-01-01` : undefined,
           dateTo: drill.year ? `${drill.year}-12-31` : undefined,
           sortBy: "date_received_center",
@@ -195,7 +352,10 @@ function DrilldownModal({
   const subtitle = [
     isUnit ? "Unit" : drill.unitName,
     drill.year ? `Received ${drill.year}` : "All years",
-    drill.appType ? `App type: ${drill.appType}` : null,
+    drill.appType ? `App type: ${drill.appType.split("|").join(", ")}` : null,
+    drill.entryType
+      ? `Entry type: ${drill.entryType.split("|").join(", ")}`
+      : null,
     stepFilter ? `Step: ${stepFilter}` : null,
   ]
     .filter(Boolean)
@@ -706,8 +866,15 @@ export default function InProgressByYearView({ darkMode }) {
   const [matrix, setMatrix] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [unitFilter, setUnitFilter] = useState("");
-  const [appTypeFilter, setAppTypeFilter] = useState("");
+  // multi-select filters (empty array = all)
+  const [unitFilter, setUnitFilter] = useState([]); // unit_id strings
+  const [appTypeFilter, setAppTypeFilter] = useState([]);
+  const [entryTypeFilter, setEntryTypeFilter] = useState([]);
+  // joined with "|" for the API; also used as stable effect deps
+  const appTypeParam = appTypeFilter.join("|");
+  const entryTypeParam = entryTypeFilter.join("|");
+  const hasTypeFilter = !!(appTypeParam || entryTypeParam);
+  const loadSeq = useRef(0);
   const [exporting, setExporting] = useState(false);
   const [drill, setDrill] = useState(null);
 
@@ -767,35 +934,39 @@ export default function InProgressByYearView({ darkMode }) {
   const childModalOpen = !!(doctrackRow || logsRow || detail);
 
   const load = async () => {
+    // ignore out-of-order responses when checkboxes are toggled quickly
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
     try {
-      setMatrix(await getInProgressYearMatrix(appTypeFilter));
+      const data = await getInProgressYearMatrix(appTypeParam, entryTypeParam);
+      if (seq === loadSeq.current) setMatrix(data);
     } catch (err) {
-      setError(err.message);
+      if (seq === loadSeq.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   };
 
-  // reload whenever the app type filter changes
+  // reload whenever the app type / entry type selection changes
   useEffect(() => {
     load();
-  }, [appTypeFilter]);
+  }, [appTypeParam, entryTypeParam]);
 
   const years = matrix?.years || [];
   const visibleUnits = useMemo(() => {
     let list = matrix?.units || [];
-    if (unitFilter) list = list.filter((u) => String(u.unit_id) === unitFilter);
-    if (!appTypeFilter) return list;
-    // with an app type selected, hide units/members that have nothing
+    if (unitFilter.length)
+      list = list.filter((u) => unitFilter.includes(String(u.unit_id)));
+    if (!hasTypeFilter) return list;
+    // with an app/entry type selected, hide units/members that have nothing
     return list
       .filter((u) => u.total > 0)
       .map((u) => ({
         ...u,
         members: u.members.filter((m) => m.total > 0 || isSideRole(m)),
       }));
-  }, [matrix, unitFilter, appTypeFilter]);
+  }, [matrix, unitFilter, hasTypeFilter]);
 
   // Only show the "No date" column if at least one row needs it
   const hasNoDate = visibleUnits.some((u) => u.no_date > 0);
@@ -828,18 +999,27 @@ export default function InProgressByYearView({ darkMode }) {
       });
 
       doc.setFontSize(14);
-      doc.text(
-        `In Progress - Received by Center${appTypeFilter ? ` (${appTypeFilter})` : ""}`,
-        40,
-        40,
-      );
+      doc.text("In Progress - Received by Center", 40, 40);
       doc.setFontSize(9);
       doc.setTextColor(110);
-      doc.text(
-        `Generated ${new Date().toLocaleString()}  |  Total in progress: ${visibleTotal}`,
-        40,
-        56,
+      const filterText = [
+        appTypeFilter.length ? `App type: ${appTypeFilter.join(", ")}` : null,
+        entryTypeFilter.length
+          ? `Entry type: ${entryTypeFilter.join(", ")}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("  |  ");
+      const subtitleLines = doc.splitTextToSize(
+        [
+          `Generated ${new Date().toLocaleString()}`,
+          `Total in progress: ${visibleTotal}`,
+          ...(filterText ? [filterText] : []),
+        ].join("  |  "),
+        doc.internal.pageSize.getWidth() - 80,
       );
+      doc.text(subtitleLines, 40, 56);
+      const tableStartY = 56 + subtitleLines.length * 11 + 8;
 
       const head = [
         [
@@ -946,7 +1126,7 @@ export default function InProgressByYearView({ darkMode }) {
       ];
 
       autoTable(doc, {
-        startY: 70,
+        startY: tableStartY,
         head,
         body,
         foot,
@@ -976,12 +1156,20 @@ export default function InProgressByYearView({ darkMode }) {
         ),
       });
 
-      const unitLabel = unitFilter
-        ? (visibleUnits[0]?.unit_name || "unit").replace(/[^\w]+/g, "_")
-        : "all_units";
-      const typeLabel = appTypeFilter
-        ? `_${appTypeFilter.replace(/[^\w]+/g, "_")}`
-        : "";
+      const slug = (s) => s.replace(/[^\w]+/g, "_");
+      const unitLabel =
+        unitFilter.length === 1
+          ? slug(visibleUnits[0]?.unit_name || "unit")
+          : unitFilter.length > 1
+            ? "selected_units"
+            : "all_units";
+      const typeLabel =
+        (appTypeFilter.length
+          ? `_${appTypeFilter.length === 1 ? slug(appTypeFilter[0]) : "multi_types"}`
+          : "") +
+        (entryTypeFilter.length
+          ? `_${entryTypeFilter.length === 1 ? slug(entryTypeFilter[0]) : "multi_entry"}`
+          : "");
       doc.save(
         `in_progress_by_year_${unitLabel}${typeLabel}_${new Date().toISOString().slice(0, 10)}.pdf`,
       );
@@ -1073,38 +1261,42 @@ export default function InProgressByYearView({ darkMode }) {
           📊 In Progress by Year Received — {visibleTotal} total
         </span>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <select
-            value={unitFilter}
-            onChange={(e) => setUnitFilter(e.target.value)}
-            style={{
-              ...btn,
-              background: colors.cardBg,
-              color: colors.textPrimary,
-            }}
-          >
-            <option value="">All units</option>
-            {(matrix?.units || []).map((u) => (
-              <option key={u.unit_id} value={u.unit_id}>
-                {u.unit_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={appTypeFilter}
-            onChange={(e) => setAppTypeFilter(e.target.value)}
-            style={{
-              ...btn,
-              background: colors.cardBg,
-              color: colors.textPrimary,
-            }}
-          >
-            <option value="">All app types</option>
-            {(matrix?.app_types || []).map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <MultiSelect
+            allLabel="All units"
+            noun="units"
+            options={(matrix?.units || []).map((u) => ({
+              value: String(u.unit_id),
+              label: u.unit_name,
+            }))}
+            selected={unitFilter}
+            onChange={setUnitFilter}
+            colors={colors}
+            buttonStyle={btn}
+          />
+          <MultiSelect
+            allLabel="All app types"
+            noun="app types"
+            options={(matrix?.app_types || []).map((t) => ({
+              value: t,
+              label: t,
+            }))}
+            selected={appTypeFilter}
+            onChange={setAppTypeFilter}
+            colors={colors}
+            buttonStyle={btn}
+          />
+          <MultiSelect
+            allLabel="All entry types"
+            noun="entry types"
+            options={(matrix?.entry_types || []).map((t) => ({
+              value: t,
+              label: t,
+            }))}
+            selected={entryTypeFilter}
+            onChange={setEntryTypeFilter}
+            colors={colors}
+            buttonStyle={btn}
+          />
           <button onClick={load} disabled={loading} style={btn}>
             {loading ? "Refreshing…" : "↻ Refresh"}
           </button>
@@ -1191,7 +1383,13 @@ export default function InProgressByYearView({ darkMode }) {
                   td={td}
                   num={num}
                   colors={colors}
-                  onDrill={(d) => setDrill({ ...d, appType: appTypeFilter })}
+                  onDrill={(d) =>
+                    setDrill({
+                      ...d,
+                      appType: appTypeParam,
+                      entryType: entryTypeParam,
+                    })
+                  }
                 />
               ))}
             </tbody>
