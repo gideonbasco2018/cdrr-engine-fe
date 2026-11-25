@@ -13,6 +13,7 @@ import {
   getAllTeamsMemberInProgressTasks,
   getUnitInProgressTasks,
   getInProgressStepSummary,
+  getAllUnitsInProgressTasks,
 } from "../../../api/targetAssignments";
 import { getUploadReports } from "../../../api/reports.js";
 import { mapDataItem } from "../../reports/utils.js";
@@ -275,7 +276,16 @@ function DrilldownModal({
   const [stepsLoading, setStepsLoading] = useState(true);
   const [stepsError, setStepsError] = useState(null);
 
-  const isUnit = drill.scope === "unit";
+  const isAll = drill.scope === "all"; // Grand total (several units)
+  const isUnit = drill.scope === "unit" || isAll;
+  const [exporting, setExporting] = useState(false);
+
+  const fetchTasks = (params) =>
+    isAll
+      ? getAllUnitsInProgressTasks({ unitIds: drill.unitIds, ...params })
+      : isUnit
+        ? getUnitInProgressTasks(drill.unitId, params)
+        : getAllTeamsMemberInProgressTasks(drill.memberId, params);
 
   // Escape closes this popup, unless a child modal is open on top of it
   useEffect(() => {
@@ -299,6 +309,7 @@ function DrilldownModal({
           appType: drill.appType || undefined,
           entryType: drill.entryType || undefined,
           memberIds: drill.memberIds || undefined,
+          unitIds: drill.unitIds || undefined,
         });
         if (!cancelled) setSteps(data || []);
       } catch (err) {
@@ -332,9 +343,7 @@ function DrilldownModal({
           sortBy: "date_received_center",
           sortDir: "asc",
         };
-        const res = isUnit
-          ? await getUnitInProgressTasks(drill.unitId, params)
-          : await getAllTeamsMemberInProgressTasks(drill.memberId, params);
+        const res = await fetchTasks(params);
         if (cancelled) return;
         setRows(res.data);
         setTotal(res.total);
@@ -350,13 +359,102 @@ function DrilldownModal({
     };
   }, [drill, isUnit, page, pageSize, debouncedSearch, stepFilter]);
 
+  const unitTitle = isAll ? "All units" : drill.unitName;
   const title = isUnit
     ? drill.label
-      ? `${drill.unitName} (${drill.label})`
-      : drill.unitName
+      ? `${unitTitle} (${drill.label})`
+      : unitTitle
     : drill.memberName;
+
+  // Exports every row matching the popup's current filters (search + step),
+  // not just the page on screen. DTN is written as text so Excel doesn't
+  // turn the long number into scientific notation.
+  const exportExcel = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const XLSX = await import("xlsx");
+      const baseParams = {
+        pageSize: 500,
+        dtn: debouncedSearch,
+        step: stepFilter || undefined,
+        appType: drill.appType || undefined,
+        entryType: drill.entryType || undefined,
+        memberIds: drill.memberIds || undefined,
+        dateFrom: drill.year ? `${drill.year}-01-01` : undefined,
+        dateTo: drill.year ? `${drill.year}-12-31` : undefined,
+        sortBy: "date_received_center",
+        sortDir: "asc",
+      };
+      const all = [];
+      let pg = 1;
+      let pages = 1;
+      do {
+        const res = await fetchTasks({ ...baseParams, page: pg });
+        all.push(...res.data);
+        pages = res.total_pages || 1;
+        pg += 1;
+      } while (pg <= pages);
+
+      if (all.length === 0) {
+        setError("Nothing to export.");
+        return;
+      }
+
+      const taskRows = all.map((t) => ({
+        ...(isUnit ? { Member: t.member_name || "" } : {}),
+        DTN: String(t.dtn ?? ""),
+        "Brand Name": t.brand_name || "",
+        "Date Received Central": t.date_received_center || "",
+        "Product Class": t.prod_class_prescrip || "",
+        "App Type": t.app_type || "",
+        "Entry Type": t.entry_type || "",
+        "Processing Type": t.processing_type || "",
+        Step: t.step || "",
+        Status: t.status || "",
+      }));
+      const wsTasks = XLSX.utils.json_to_sheet(taskRows);
+      wsTasks["!cols"] = Object.keys(taskRows[0]).map((k) => ({
+        wch: Math.min(
+          40,
+          Math.max(
+            k.length + 2,
+            ...taskRows.slice(0, 200).map((r) => String(r[k] ?? "").length + 2),
+          ),
+        ),
+      }));
+
+      const stepRows = [
+        ...steps.map((s) => ({ Step: s.label, Count: s.count })),
+        { Step: "Total", Count: stepsTotal },
+      ];
+      const wsSteps = XLSX.utils.json_to_sheet(stepRows);
+      wsSteps["!cols"] = [{ wch: 32 }, { wch: 10 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, wsTasks, "Tasks");
+      XLSX.utils.book_append_sheet(wb, wsSteps, "By step");
+
+      const slug = (s) => String(s).replace(/[^\w]+/g, "_");
+      XLSX.writeFile(
+        wb,
+        `in_progress_${slug(title)}_${drill.year || "all_years"}_${new Date()
+          .toISOString()
+          .slice(0, 10)}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Excel export failed:", err);
+      setError("Failed to export Excel.");
+    } finally {
+      setExporting(false);
+    }
+  };
   const subtitle = [
-    isUnit ? "Unit" : drill.unitName,
+    isAll
+      ? `${drill.unitCount} unit${drill.unitCount === 1 ? "" : "s"}`
+      : isUnit
+        ? "Unit"
+        : drill.unitName,
     drill.year ? `Received ${drill.year}` : "All years",
     drill.appType ? `App type: ${drill.appType.split("|").join(", ")}` : null,
     drill.entryType
@@ -469,6 +567,27 @@ function DrilldownModal({
               }}
             />
             <button
+              type="button"
+              onClick={exportExcel}
+              disabled={exporting || total === 0}
+              title="Export all rows matching the current filters"
+              style={{
+                padding: "5px 12px",
+                borderRadius: 6,
+                border: `1px solid ${colors.accent}`,
+                background: colors.accent,
+                color: "#fff",
+                fontSize: "0.74rem",
+                fontWeight: 700,
+                cursor: exporting || total === 0 ? "default" : "pointer",
+                opacity: exporting || total === 0 ? 0.6 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {exporting ? "Exporting…" : `⬇ Export Excel (${total})`}
+            </button>
+
+            <button
               onClick={onClose}
               style={{
                 width: 28,
@@ -560,9 +679,9 @@ function DrilldownModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((t) => (
+                    {rows.map((t, i) => (
                       <tr
-                        key={t.log_id}
+                        key={`${t.log_id}-${i}`}
                         style={{ borderTop: `1px solid ${colors.cardBorder}` }}
                       >
                         {isUnit && <td style={cell}>{t.member_name}</td>}
@@ -875,7 +994,7 @@ export default function InProgressByYearView({ darkMode }) {
   // multi-select filters (empty array = all)
   const [unitFilter, setUnitFilter] = useState([]); // unit_id strings
   const [appTypeFilter, setAppTypeFilter] = useState([]);
-  const [entryTypeFilter, setEntryTypeFilter] = useState([]);
+  const [entryTypeFilter, setEntryTypeFilter] = useState(["ORIGINAL"]);
   // joined with "|" for the API; also used as stable effect deps
   const appTypeParam = appTypeFilter.join("|");
   const entryTypeParam = entryTypeFilter.join("|");
@@ -1220,6 +1339,24 @@ export default function InProgressByYearView({ darkMode }) {
     }
   };
 
+  // Grand total click: every unit currently shown in the table
+  const grandDrill = (year) =>
+    setDrill({
+      scope: "all",
+      unitIds: visibleUnits.map((u) => u.unit_id).join("|"),
+      unitCount: visibleUnits.length,
+      // supervisors toggled off: only list the members still in the table
+      memberIds: includeSupervisors
+        ? undefined
+        : visibleUnits
+            .flatMap((u) => u.members.map((m) => m.member_user_id))
+            .join("|"),
+      label: includeSupervisors ? undefined : "without supervisors",
+      year,
+      appType: appTypeParam,
+      entryType: entryTypeParam,
+    });
+
   // ── Styles ──
   const th = {
     background: colors.headBg,
@@ -1481,12 +1618,25 @@ export default function InProgressByYearView({ darkMode }) {
                   Grand total
                 </td>
                 {years.map((y) => (
-                  <td key={y} style={th}>
-                    {yearTotals[y] || ""}
-                  </td>
+                  <CountCell
+                    key={y}
+                    value={yearTotals[y]}
+                    style={th}
+                    colors={colors}
+                    linkColor={colors.headText}
+                    title={`All units — ${y}`}
+                    onClick={() => grandDrill(y)}
+                  />
                 ))}
                 {hasNoDate && <td style={th}>{noDateTotal || ""}</td>}
-                <td style={th}>{visibleTotal}</td>
+                <CountCell
+                  value={visibleTotal}
+                  style={th}
+                  colors={colors}
+                  linkColor={colors.headText}
+                  title="All units — all years"
+                  onClick={() => grandDrill(null)}
+                />
               </tr>
             </tfoot>
           </table>
@@ -1535,7 +1685,7 @@ export default function InProgressByYearView({ darkMode }) {
 }
 
 // A number that opens the drill-down popup. Empty cells stay plain.
-function CountCell({ value, style, colors, onClick, title }) {
+function CountCell({ value, style, colors, onClick, title, linkColor }) {
   if (!value) return <td style={style} />;
   return (
     <td style={style}>
@@ -1549,7 +1699,7 @@ function CountCell({ value, style, colors, onClick, title }) {
           padding: "0 4px",
           font: "inherit",
           fontWeight: "inherit",
-          color: colors.accent,
+          color: linkColor || colors.accent,
           cursor: "pointer",
           textDecoration: "underline",
           textUnderlineOffset: 2,

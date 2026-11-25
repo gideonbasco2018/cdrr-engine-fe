@@ -500,6 +500,7 @@ export const getInProgressStepSummary = async ({
   appType,
   entryType,
   memberIds,
+  unitIds,
 } = {}) => {
   try {
     const response = await API.get(
@@ -512,6 +513,7 @@ export const getInProgressStepSummary = async ({
           app_type: appType || undefined,
           entry_type: entryType || undefined,
           member_ids: memberIds || undefined,
+          unit_ids: unitIds || undefined,
         },
       }
     );
@@ -521,6 +523,54 @@ export const getInProgressStepSummary = async ({
       error.response?.data?.detail ||
       error.message ||
       "Failed to fetch step summary";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/in-progress-tasks
+// In-progress tasks across several units (unitIds = "1|2|3"). Read-only.
+// ─────────────────────────────────────────────
+export const getAllUnitsInProgressTasks = async ({
+  unitIds,
+  page = 1,
+  pageSize = 20,
+  dtn,
+  dateFrom,
+  dateTo,
+  step,
+  appType,
+  entryType,
+  memberIds,
+  sortBy,
+  sortDir,
+} = {}) => {
+  try {
+    const response = await API.get(
+      "/target_assignments/lead-assignments/all-teams/in-progress-tasks",
+      {
+        params: {
+          unit_ids: unitIds,
+          page,
+          page_size: pageSize,
+          dtn: dtn || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          step: step || undefined,
+          app_type: appType || undefined,
+          entry_type: entryType || undefined,
+          member_ids: memberIds || undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch tasks";
     throw new Error(errorMessage);
   }
 };
