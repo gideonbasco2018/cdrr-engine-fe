@@ -298,6 +298,7 @@ function DrilldownModal({
           year: drill.year || undefined,
           appType: drill.appType || undefined,
           entryType: drill.entryType || undefined,
+          memberIds: drill.memberIds || undefined,
         });
         if (!cancelled) setSteps(data || []);
       } catch (err) {
@@ -325,6 +326,7 @@ function DrilldownModal({
           step: stepFilter || undefined,
           appType: drill.appType || undefined,
           entryType: drill.entryType || undefined,
+          memberIds: drill.memberIds || undefined,
           dateFrom: drill.year ? `${drill.year}-01-01` : undefined,
           dateTo: drill.year ? `${drill.year}-12-31` : undefined,
           sortBy: "date_received_center",
@@ -348,7 +350,11 @@ function DrilldownModal({
     };
   }, [drill, isUnit, page, pageSize, debouncedSearch, stepFilter]);
 
-  const title = isUnit ? drill.unitName : drill.memberName;
+  const title = isUnit
+    ? drill.label
+      ? `${drill.unitName} (${drill.label})`
+      : drill.unitName
+    : drill.memberName;
   const subtitle = [
     isUnit ? "Unit" : drill.unitName,
     drill.year ? `Received ${drill.year}` : "All years",
@@ -875,6 +881,7 @@ export default function InProgressByYearView({ darkMode }) {
   const entryTypeParam = entryTypeFilter.join("|");
   const hasTypeFilter = !!(appTypeParam || entryTypeParam);
   const loadSeq = useRef(0);
+  const [includeSupervisors, setIncludeSupervisors] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [drill, setDrill] = useState(null);
 
@@ -958,6 +965,38 @@ export default function InProgressByYearView({ darkMode }) {
     let list = matrix?.units || [];
     if (unitFilter.length)
       list = list.filter((u) => unitFilter.includes(String(u.unit_id)));
+
+    // Supervisors OFF: remove them from the rows and subtract their
+    // counts from the unit totals.
+    if (!includeSupervisors) {
+      list = list
+        .map((u) => {
+          const sups = u.members.filter(isSupervisor);
+          if (sups.length === 0) return u;
+          const counts = { ...u.counts };
+          let noDate = u.no_date;
+          let total = u.total;
+          sups.forEach((s) => {
+            Object.entries(s.counts).forEach(([y, n]) => {
+              counts[y] = (counts[y] || 0) - n;
+            });
+            noDate -= s.no_date || 0;
+            total -= s.total || 0;
+          });
+          const members = u.members.filter((m) => !isSupervisor(m));
+          return {
+            ...u,
+            counts,
+            no_date: noDate,
+            total,
+            members,
+            // so clicking the Unit total only lists these members' tasks
+            scopeMemberIds: members.map((m) => m.member_user_id).join("|"),
+          };
+        })
+        .filter((u) => u.members.length > 0);
+    }
+
     if (!hasTypeFilter) return list;
     // with an app/entry type selected, hide units/members that have nothing
     return list
@@ -966,7 +1005,7 @@ export default function InProgressByYearView({ darkMode }) {
         ...u,
         members: u.members.filter((m) => m.total > 0 || isSideRole(m)),
       }));
-  }, [matrix, unitFilter, hasTypeFilter]);
+  }, [matrix, unitFilter, hasTypeFilter, includeSupervisors]);
 
   // Only show the "No date" column if at least one row needs it
   const hasNoDate = visibleUnits.some((u) => u.no_date > 0);
@@ -1297,6 +1336,49 @@ export default function InProgressByYearView({ darkMode }) {
             colors={colors}
             buttonStyle={btn}
           />
+          <button
+            type="button"
+            onClick={() => setIncludeSupervisors((v) => !v)}
+            title="Show or hide supervisors in the table"
+            style={{
+              ...btn,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: includeSupervisors ? colors.accent : colors.textSecondary,
+              borderColor: includeSupervisors
+                ? colors.accent
+                : colors.cardBorder,
+            }}
+          >
+            <span
+              style={{
+                width: 26,
+                height: 14,
+                borderRadius: 9999,
+                background: includeSupervisors
+                  ? colors.accent
+                  : colors.cardBorder,
+                position: "relative",
+                display: "inline-block",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: includeSupervisors ? 14 : 2,
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.15s",
+                }}
+              />
+            </span>
+            Supervisors
+          </button>
+
           <button onClick={load} disabled={loading} style={btn}>
             {loading ? "Refreshing…" : "↻ Refresh"}
           </button>
@@ -1514,6 +1596,20 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
       scope: "unit",
       unitId: unit.unit_id,
       unitName: unit.unit_name,
+      // set only when supervisors are toggled off
+      memberIds: unit.scopeMemberIds || undefined,
+      label: unit.scopeMemberIds ? "without supervisors" : undefined,
+      year,
+    });
+
+  // "Total" row: only the member rows above it (no supervisors/statisticians)
+  const membersDrill = (year) =>
+    onDrill({
+      scope: "unit",
+      unitId: unit.unit_id,
+      unitName: unit.unit_name,
+      memberIds: memberRows.map((m) => m.member_user_id).join("|"),
+      label: "members total",
       year,
     });
 
@@ -1606,12 +1702,23 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
           <tr>
             <td style={{ ...plainTotal, textAlign: "left" }}>Total</td>
             {years.map((y) => (
-              <td key={y} style={plainTotal}>
-                {sumYear(y) || ""}
-              </td>
+              <CountCell
+                key={y}
+                value={sumYear(y)}
+                style={plainTotal}
+                colors={colors}
+                title={`Members total — ${y}`}
+                onClick={() => membersDrill(y)}
+              />
             ))}
             {hasNoDate && <td style={plainTotal}>{sumNoDate || ""}</td>}
-            <td style={plainTotal}>{sumTotal || ""}</td>
+            <CountCell
+              value={sumTotal}
+              style={plainTotal}
+              colors={colors}
+              title="Members total — all years"
+              onClick={() => membersDrill(null)}
+            />
           </tr>
           {/* Supervisors: own counts, shown even when zero */}
           {extras.map((s) => (
