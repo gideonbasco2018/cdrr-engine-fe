@@ -43,6 +43,7 @@ export const allMenuItems = [
   { id: "upload-document", label: "Upload Document", icon: "📤", category: "Tools" },
   { id: "bulk-folder-document-upload", label: "Batch Folder Upload", icon: "📚", category: "Tools" },
   { id: "checklist", label: "Checklist", icon: "📋", category: "Tools" },
+  { id: "softcopy", label: "Softcopy", icon: "📨", category: "Tools" },
 
   // Administration
   { id: "access", label: "Access Management", icon: "🔐", category: "Administration" },
