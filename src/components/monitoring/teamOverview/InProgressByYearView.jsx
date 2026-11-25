@@ -66,22 +66,28 @@ function useDebouncedValue(value, delayMs = 350) {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-// Every unit: supervisors are NOT given a member row; their names are
-// listed under the unit name instead. The Safety & Efficacy unit is
-// stricter: only plain "S&E" members get a row (statisticians hidden too).
+// Every unit: supervisors and statisticians are NOT given a member row;
+// their names are listed under the unit name and their own counts go
+// below the "Total" row. The Safety & Efficacy unit is stricter: only
+// plain "S&E" members get a row.
 const isSEUnit = (unit) => /safety\s*&\s*efficacy/i.test(unit.unit_name || "");
 const roleOf = (m) => (m.lead_role || "").trim().toLowerCase();
 const isSupervisor = (m) => roleOf(m).includes("supervisor");
 
+const isStatistician = (m) => roleOf(m).includes("statistician");
+const isSideRole = (m) => isSupervisor(m) || isStatistician(m);
+
 function splitUnitMembers(unit) {
   const supervisors = unit.members.filter(isSupervisor);
+  const statisticians = unit.members.filter(isStatistician);
   const rows = isSEUnit(unit)
     ? unit.members.filter((m) => roleOf(m) === "s&e")
-    : unit.members.filter((m) => !isSupervisor(m));
-  // safety net: if nobody is left for the rows (e.g. a unit with only a
-  // supervisor), show everyone so the unit never renders empty
-  if (rows.length === 0) return { rows: unit.members, supervisors: [] };
-  return { rows, supervisors };
+    : unit.members.filter((m) => !isSideRole(m));
+  // safety net: if nobody is left for the rows, show everyone so the
+  // unit never renders empty
+  if (rows.length === 0)
+    return { rows: unit.members, supervisors: [], statisticians: [] };
+  return { rows, supervisors, statisticians };
 }
 // ══════════════════════════════════════════════════════════════════
 // Drill-down popup — read-only list of the in-progress tasks behind a
@@ -787,7 +793,7 @@ export default function InProgressByYearView({ darkMode }) {
       .filter((u) => u.total > 0)
       .map((u) => ({
         ...u,
-        members: u.members.filter((m) => m.total > 0 || isSupervisor(m)),
+        members: u.members.filter((m) => m.total > 0 || isSideRole(m)),
       }));
   }, [matrix, unitFilter, appTypeFilter]);
 
@@ -850,18 +856,33 @@ export default function InProgressByYearView({ darkMode }) {
 
       const body = [];
       visibleUnits.forEach((u) => {
-        const { rows: unitRows, supervisors } = splitUnitMembers(u);
-        const unitLabel = supervisors.length
-          ? `${u.unit_name}\n\nSupervisor:\n${supervisors
-              .map((s) => s.member_name)
-              .join("\n")}`
-          : u.unit_name;
+        const {
+          rows: unitRows,
+          supervisors,
+          statisticians,
+        } = splitUnitMembers(u);
+        const extras = [...supervisors, ...statisticians];
+        const unitLabel = [
+          u.unit_name,
+          supervisors.length
+            ? `Supervisor:\n${supervisors.map((s) => s.member_name).join("\n")}`
+            : null,
+          statisticians.length
+            ? `Statistician:\n${statisticians
+                .map((s) => s.member_name)
+                .join("\n")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        const hasSup = extras.length > 0;
         unitRows.forEach((m, idx) => {
           const row = [];
           if (idx === 0) {
             row.push({
               content: unitLabel,
-              rowSpan: unitRows.length + 1, // + subtotal row
+              // members + unit total (+ "Total" row + supervisor rows)
+              rowSpan: unitRows.length + 1 + (hasSup ? extras.length + 1 : 0),
               styles: { valign: "middle", fontStyle: "bold" },
             });
           }
@@ -871,6 +892,29 @@ export default function InProgressByYearView({ darkMode }) {
           row.push(m.total || "");
           body.push(row);
         });
+        if (hasSup) {
+          const sumOf = (fn) => unitRows.reduce((s, m) => s + fn(m), 0);
+          const bold = { fontStyle: "bold" };
+          body.push([
+            { content: "Total", styles: bold },
+            ...years.map((y) => ({
+              content: sumOf((m) => m.counts[y] || 0) || "",
+              styles: bold,
+            })),
+            ...(hasNoDate
+              ? [{ content: sumOf((m) => m.no_date) || "", styles: bold }]
+              : []),
+            { content: sumOf((m) => m.total) || "", styles: bold },
+          ]);
+          extras.forEach((s) => {
+            body.push([
+              s.member_name,
+              ...years.map((y) => s.counts[y] || ""),
+              ...(hasNoDate ? [s.no_date || ""] : []),
+              s.total || "",
+            ]);
+          });
+        }
         // Unit subtotal row (unit cell is covered by the rowSpan above)
         const sub = [
           { content: "Unit total", styles: { fontStyle: "bold" } },
@@ -1237,16 +1281,26 @@ function CountCell({ value, style, colors, onClick, title }) {
   );
 }
 
-// One unit block: unit cell (rowSpan) + member rows + unit subtotal row
+// One unit block: unit cell (rowSpan) + member rows, then (if the unit
+// has supervisors/statisticians) a "Total" row of the members above and
+// one row per supervisor/statistician, then the Unit total (everyone).
 function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
-  const { rows: memberRows, supervisors } = splitUnitMembers(unit);
-  const rowCount = memberRows.length + 1; // + subtotal row
+  const {
+    rows: memberRows,
+    supervisors,
+    statisticians,
+  } = splitUnitMembers(unit);
+  const extras = [...supervisors, ...statisticians];
+  const hasSup = extras.length > 0;
+  const rowCount = memberRows.length + 1 + (hasSup ? extras.length + 1 : 0);
+
   const subtotal = {
     ...num,
     fontWeight: 700,
     color: colors.textPrimary,
     background: colors.unitTotalBg,
   };
+  const plainTotal = { ...num, fontWeight: 700, color: colors.textPrimary };
 
   const memberDrill = (m, year) =>
     onDrill({
@@ -1265,6 +1319,35 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
       year,
     });
 
+  // Name cell + year cells + no-date + total for one member/supervisor
+  const memberCells = (m) => (
+    <>
+      <td style={td}>{m.member_name}</td>
+      {years.map((y) => (
+        <CountCell
+          key={y}
+          value={m.counts[y]}
+          style={num}
+          colors={colors}
+          title={`${m.member_name} — ${y}`}
+          onClick={() => memberDrill(m, y)}
+        />
+      ))}
+      {hasNoDate && <td style={num}>{m.no_date || ""}</td>}
+      <CountCell
+        value={m.total}
+        style={{ ...num, fontWeight: 700 }}
+        colors={colors}
+        title={`${m.member_name} — all years`}
+        onClick={() => memberDrill(m, null)}
+      />
+    </>
+  );
+
+  const sumYear = (y) => memberRows.reduce((s, m) => s + (m.counts[y] || 0), 0);
+  const sumNoDate = memberRows.reduce((s, m) => s + (m.no_date || 0), 0);
+  const sumTotal = memberRows.reduce((s, m) => s + (m.total || 0), 0);
+
   return (
     <>
       {memberRows.map((m, idx) => (
@@ -1282,54 +1365,63 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
               }}
             >
               {unit.unit_name}
-              {supervisors.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    fontWeight: 400,
-                    fontSize: "0.74rem",
-                    color: colors.textSecondary,
-                  }}
-                >
+              {[
+                { label: "Supervisor", people: supervisors },
+                { label: "Statistician", people: statisticians },
+              ]
+                .filter((g) => g.people.length > 0)
+                .map((g) => (
                   <div
+                    key={g.label}
                     style={{
-                      fontSize: "0.66rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                      color: colors.textTertiary,
-                      marginBottom: 2,
+                      marginTop: 10,
+                      fontWeight: 400,
+                      fontSize: "0.74rem",
+                      color: colors.textSecondary,
                     }}
                   >
-                    Supervisor
+                    <div
+                      style={{
+                        fontSize: "0.66rem",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        color: colors.textTertiary,
+                        marginBottom: 2,
+                      }}
+                    >
+                      {g.label}
+                    </div>
+                    {g.people.map((s) => (
+                      <div key={s.member_user_id}>{s.member_name}</div>
+                    ))}
                   </div>
-                  {supervisors.map((s) => (
-                    <div key={s.member_user_id}>{s.member_name}</div>
-                  ))}
-                </div>
-              )}
+                ))}
             </td>
           )}
-          <td style={td}>{m.member_name}</td>
-          {years.map((y) => (
-            <CountCell
-              key={y}
-              value={m.counts[y]}
-              style={num}
-              colors={colors}
-              title={`${m.member_name} — ${y}`}
-              onClick={() => memberDrill(m, y)}
-            />
-          ))}
-          {hasNoDate && <td style={num}>{m.no_date || ""}</td>}
-          <CountCell
-            value={m.total}
-            style={{ ...num, fontWeight: 700 }}
-            colors={colors}
-            title={`${m.member_name} — all years`}
-            onClick={() => memberDrill(m, null)}
-          />
+          {memberCells(m)}
         </tr>
       ))}
+
+      {hasSup && (
+        <>
+          {/* Total of the member rows above (supervisors excluded) */}
+          <tr>
+            <td style={{ ...plainTotal, textAlign: "left" }}>Total</td>
+            {years.map((y) => (
+              <td key={y} style={plainTotal}>
+                {sumYear(y) || ""}
+              </td>
+            ))}
+            {hasNoDate && <td style={plainTotal}>{sumNoDate || ""}</td>}
+            <td style={plainTotal}>{sumTotal || ""}</td>
+          </tr>
+          {/* Supervisors: own counts, shown even when zero */}
+          {extras.map((s) => (
+            <tr key={s.member_user_id}>{memberCells(s)}</tr>
+          ))}
+        </>
+      )}
+
       <tr>
         <td style={{ ...subtotal, textAlign: "left" }}>Unit total</td>
         {years.map((y) => (
