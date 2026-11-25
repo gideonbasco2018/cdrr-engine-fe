@@ -37,7 +37,7 @@ import { exportMonitoringPdf } from "../components/monitoring/evaluatorMonitorin
 import { SourceBadge } from "../components/monitoring/evaluatorMonitoring/SourceBadge";
 import PickList from "../components/monitoring/evaluatorMonitoring/PickList";
 import CheckList from "../components/monitoring/evaluatorMonitoring/CheckList";
-import { fmtTat } from "../components/monitoring/evaluatorMonitoring/tatFormat";
+import { fmtTat, tatTitle } from "../components/monitoring/evaluatorMonitoring/tatFormat";
 import {
   DEFAULT_ROLES,
   ROLE_KEYS,
@@ -689,6 +689,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                       {fmt(r.total_apps)}
                     </td>
                     <td
+                      title={tatTitle(r.avg_tat)}
                       style={{
                         ...ui.td,
                         ...ui.num,
@@ -698,10 +699,16 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                     >
                       {fmtTat(r.avg_tat)}
                     </td>
-                    <td style={{ ...ui.td, ...ui.num, color: t.ink2 }}>
+                    <td
+                      title={tatTitle(r.fastest_tat)}
+                      style={{ ...ui.td, ...ui.num, color: t.ink2 }}
+                    >
                       {fmtTat(r.fastest_tat)}
                     </td>
-                    <td style={{ ...ui.td, ...ui.num, color: t.ink2 }}>
+                    <td
+                      title={tatTitle(r.slowest_tat)}
+                      style={{ ...ui.td, ...ui.num, color: t.ink2 }}
+                    >
                       {fmtTat(r.slowest_tat)}
                     </td>
                   </tr>
@@ -781,15 +788,18 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           <input
             type="text"
             value={query}
-            // The box is for typing only: matches show while there is text,
-            // and the list closes when the box is emptied. Clicking it does
-            // not open anything; the arrow button lists everyone.
+            // Clicking the box lists everyone A-Z (no need for the arrow);
+            // typing narrows the list. Escape or a click outside closes it.
             onChange={(e) => {
               setQuery(e.target.value);
-              setShowResults(e.target.value.trim().length > 0);
+              setShowResults(true);
             }}
             onKeyDown={(e) => e.key === "Escape" && setShowResults(false)}
-            onFocus={ui.focusOn}
+            onClick={() => setShowResults(true)}
+            onFocus={(e) => {
+              ui.focusOn(e);
+              setShowResults(true);
+            }}
             onBlur={ui.focusOff}
             placeholder={
               evaluator
@@ -1032,8 +1042,8 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               : `Search for ${withArticle(roleWord)} to begin`}
           </div>
           <div style={{ fontSize: "0.74rem", color: t.ink3, marginTop: 5 }}>
-            Type part of a name or code, or press the arrow to list everyone
-            A–Z.
+            Click the search box to list everyone A–Z, or type part of a name
+            or code.
           </div>
         </div>
       )}

@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { startLabel, endLabel } from "./tatSources";
 import { roleName } from "./roles";
+import { fmtTat } from "./tatFormat";
 
 const safeName = (s) =>
   String(s ?? "export")
@@ -56,6 +57,7 @@ export function exportRecordsXlsx({ data, rows, evaluator, context }) {
     "TAT End from",
     "Date Released",
     "TAT (working days)",
+    "TAT (shown on page)",
     "Status",
   ];
   const body = rows.map((r, i) => [
@@ -74,6 +76,7 @@ export function exportRecordsXlsx({ data, rows, evaluator, context }) {
     endLabel(r.tat_end_src),
     r.date_released,
     r.tat,
+    fmtTat(r.tat),
     r.status,
   ]);
   const info = [
@@ -114,6 +117,7 @@ export function exportMonitoringXlsx({ data, periodLabel }) {
     ["Counted in ranking", data.summary.counted_apps],
     ["Skipped", data.summary.skipped_apps],
     ["Average TAT (working days)", data.summary.avg_tat],
+    ["Average TAT (shown on page)", fmtTat(data.summary.avg_tat)],
     [],
     ...Object.values(data.formula).map((line) => [line]),
   ]);
@@ -144,7 +148,7 @@ export function exportMonitoringXlsx({ data, periodLabel }) {
   ]);
 
   const ranked = (rows) => [
-    ["Rank", "Name", "Total Apps", "Avg TAT (working days)", "Fastest (working days)", "Slowest (working days)", "Spellings counted together"],
+    ["Rank", "Name", "Total Apps", "Avg TAT (working days)", "Fastest (working days)", "Slowest (working days)", "Avg TAT (shown on page)", "Fastest (shown on page)", "Slowest (shown on page)", "Spellings counted together"],
     ...rows.map((r) => [
       r.rank,
       r.name,
@@ -152,6 +156,9 @@ export function exportMonitoringXlsx({ data, periodLabel }) {
       r.avg_tat,
       r.fastest_tat,
       r.slowest_tat,
+      fmtTat(r.avg_tat),
+      fmtTat(r.fastest_tat),
+      fmtTat(r.slowest_tat),
       r.spellings.length > 1 ? spellingsText(r.spellings) : "",
     ]),
   ];
