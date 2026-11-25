@@ -159,6 +159,12 @@ export const menuDefinitions = {
       label: "Checklist",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+    {
+      id: "softcopy",
+      icon: "📨",
+      label: "Softcopy",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   administrationItems: [

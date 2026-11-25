@@ -3,10 +3,12 @@
 // current snapshot, per-record live status, who's carrying open work, and
 // what needs attention right now. Trends and composition breakdowns live in
 // the sibling Analytics tab instead.
+import { useState } from "react";
 import { FadeSlideIn } from "../../monitoring/analytics/KpiCard";
 import { GMPSectionCard } from "./GMPSectionCard";
 import { GMPKpiCard } from "./GMPKpiCard";
 import ApplicationMonitoringTable from "./ApplicationMonitoringTable";
+import GMPStepRecordsModal from "./GMPStepRecordsModal";
 import { SectionHeading, SkeletonBox } from "./gmpAnalyticsShared";
 import { GMPPipeline, GMPReleaseGauge, GMPAgingBar, GMPWorkloadList } from "./GMPMonitoringWidgets";
 
@@ -14,7 +16,11 @@ export default function GMPMonitoringTab({
   ui, darkMode, loading,
   kpiView, kpis, dtnKpis,
   workload, byStep, aging, nodKpis, summary, stepTiming,
+  year = "All", month = "All",
 }) {
+  // The step whose applications are listed in the popup (null = closed).
+  const [openStep, setOpenStep] = useState(null);
+
   return (
     <div>
       {/* ── Right now: the KPI tiles ── */}
@@ -53,10 +59,13 @@ export default function GMPMonitoringTab({
         <SectionHeading index={2} icon="🧭" title="Applications by step" subtitle="How many open applications are sitting at each workflow step, right now" ui={ui} />
       </div>
       <FadeSlideIn delay={90} style={{ marginBottom: 16 }}>
-        <GMPSectionCard title="Where every open application sits" subtitle="Decking → OD Releasing — hover a step to see its average hand-over time" ui={ui}>
-          <GMPPipeline items={byStep} timing={stepTiming} ui={ui} loading={loading} />
+        <GMPSectionCard title="Where every open application sits" subtitle="Decking → OD Releasing — hover a step to see its average hand-over time, click it to list its applications" ui={ui}>
+          <GMPPipeline items={byStep} timing={stepTiming} ui={ui} loading={loading} onSelect={setOpenStep} />
         </GMPSectionCard>
       </FadeSlideIn>
+      {openStep && (
+        <GMPStepRecordsModal step={openStep} year={year} month={month} ui={ui} onClose={() => setOpenStep(null)} />
+      )}
 
       {/* ── Live application status ── */}
       <div style={{ marginTop: 28 }}>

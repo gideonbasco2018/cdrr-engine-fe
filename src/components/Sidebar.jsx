@@ -251,6 +251,7 @@ function Sidebar({
       "target-assignments": `${basePath}/target-assignments`,
       "eapplication-tasks": `${basePath}/eapplication-tasks`,
       "cmdr-db": `${basePath}/cmdr-db`,
+      softcopy: `${basePath}/softcopy`,
     };
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);

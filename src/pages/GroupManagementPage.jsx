@@ -118,6 +118,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "upload-document": "Tools",
       "bulk-folder-document-upload": "Tools",
       checklist: "Tools",
+      softcopy: "Tools",
       announcements: "Support",
       support: "Support",
       access: "Administration",

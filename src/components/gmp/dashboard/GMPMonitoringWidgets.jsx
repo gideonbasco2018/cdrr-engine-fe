@@ -46,7 +46,8 @@ export function GMPFxStyles() {
 // FROO is a legacy detour — only shown if something is still sitting there.
 // Hover a step to see how long applications usually stay there before they are
 // handed to the next step (average of completed hand-overs, from `timing`).
-export function GMPPipeline({ items, timing, ui, loading }) {
+// Click a step that has applications to list them (`onSelect(stepId)`).
+export function GMPPipeline({ items, timing, ui, loading, onSelect }) {
   const [tip, setTip] = useState(null); // { id, x, y }
   if (loading) return <SkeletonBox height={170} ui={ui} />;
 
@@ -75,13 +76,21 @@ export function GMPPipeline({ items, timing, ui, loading }) {
         {steps.map((s, i) => {
           const hot = pileUp && s.id === top.id;
           const empty = s.count === 0;
+          const clickable = !!onSelect && !empty;
+          const pick = () => { setTip(null); onSelect(s.id); };
           return (
             <div key={s.id} style={{ display: "flex", alignItems: "flex-start", flex: i === steps.length - 1 ? "0 0 auto" : "1 1 auto", minWidth: 0 }}>
               <div
                 className="gmp-rise"
                 onMouseEnter={show(s.id)} onMouseLeave={() => setTip(null)}
                 onFocus={show(s.id)} onBlur={() => setTip(null)} tabIndex={0}
-                style={{ animationDelay: `${i * 70}ms`, width: 96, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "default", outline: "none" }}
+                {...(clickable ? {
+                  role: "button",
+                  "aria-label": `${s.label}: ${s.count.toLocaleString()} open application${s.count === 1 ? "" : "s"} — show the list`,
+                  onClick: pick,
+                  onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } },
+                } : {})}
+                style={{ animationDelay: `${i * 70}ms`, width: 96, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: clickable ? "pointer" : "default", outline: "none" }}
               >
                 <div
                   style={{
@@ -156,25 +165,16 @@ export function GMPPipeline({ items, timing, ui, loading }) {
             <div style={{ fontSize: "0.68rem", color: ui.textMuted, marginTop: 6, borderTop: `1px solid ${ui.divider}`, paddingTop: 6 }}>
               Based on {t ? t.total.toLocaleString() : 0} finished {cur.label} step{t?.total === 1 ? "" : "s"} · {cur.count.toLocaleString()} open here now
             </div>
+            {onSelect && cur.count > 0 && (
+              <div style={{ fontSize: "0.68rem", fontWeight: 700, color: cur.color, marginTop: 6 }}>
+                Click to see these {cur.count.toLocaleString()} application{cur.count === 1 ? "" : "s"}
+              </div>
+            )}
           </div>,
           document.body,
         );
       })()}
 
-      {pileUp && (
-        <div style={{
-          marginTop: 16, padding: "12px 14px", borderRadius: 10, display: "flex", gap: 10, alignItems: "flex-start",
-          background: `${AMBER}14`, border: `1px solid ${AMBER}44`,
-        }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: AMBER, marginTop: 5, flexShrink: 0, animation: "gmpPulseDot 1.8s ease-in-out infinite" }} />
-          <div>
-            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: AMBER }}>{top.label} holds most of the open work</div>
-            <div style={{ fontSize: "0.76rem", color: ui.textSub, marginTop: 2, lineHeight: 1.5 }}>
-              {top.count.toLocaleString()} of {total.toLocaleString()} open applications — {Math.round(share * 100)}% — are sitting at this step right now.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

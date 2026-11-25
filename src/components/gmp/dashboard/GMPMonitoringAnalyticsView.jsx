@@ -241,6 +241,7 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
           ui={ui} darkMode={darkMode} loading={loading}
           kpiView={kpiView} kpis={kpis} dtnKpis={dtnKpis}
           workload={workload} byStep={byStep} aging={aging} nodKpis={nodKpis} summary={summary} stepTiming={stepTiming}
+          year={year} month={month}
         />
       ) : (
         <GMPAnalyticsTab

@@ -25,7 +25,7 @@ import { makeUi, Icon, IconChip, Skeleton, AMBER } from "./ui";
 import { startLabel, endLabel } from "./tatSources";
 import { SourceBadge } from "./SourceBadge";
 import { roleName } from "./roles";
-import { fmtTat, tatUnit } from "./tatFormat";
+import { fmtTat, tatTitle, tatUnit } from "./tatFormat";
 
 const PAGE_SIZE = 50;
 const LOAD_LIMIT = 2000; // the API caps one request at 2,000 rows
@@ -367,7 +367,10 @@ function EvaluatorRecordsModal({
                   {data.avg_tat != null && (
                     <>
                       {" · "}Average TAT{" "}
-                      <span style={{ color: t.ink2, fontWeight: 500 }}>
+                      <span
+                        title={tatTitle(data.avg_tat)}
+                        style={{ color: t.ink2, fontWeight: 500 }}
+                      >
                         {fmtTat(data.avg_tat)} {tatUnit(data.avg_tat)}
                       </span>
                     </>
@@ -669,7 +672,7 @@ function EvaluatorRecordsModal({
                             {show(r[c.key])}
                           </span>
                         ) : c.key === "tat" ? (
-                          fmtTat(r.tat)
+                          <span title={tatTitle(r.tat)}>{fmtTat(r.tat)}</span>
                         ) : (
                           show(r[c.key])
                         )}
