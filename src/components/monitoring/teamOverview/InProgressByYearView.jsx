@@ -310,6 +310,7 @@ function DrilldownModal({
           entryType: drill.entryType || undefined,
           memberIds: drill.memberIds || undefined,
           unitIds: drill.unitIds || undefined,
+          step: drill.step || undefined,
         });
         if (!cancelled) setSteps(data || []);
       } catch (err) {
@@ -334,7 +335,7 @@ function DrilldownModal({
           page,
           pageSize,
           dtn: debouncedSearch,
-          step: stepFilter || undefined,
+          step: stepFilter || drill.step || undefined,
           appType: drill.appType || undefined,
           entryType: drill.entryType || undefined,
           memberIds: drill.memberIds || undefined,
@@ -377,7 +378,7 @@ function DrilldownModal({
       const baseParams = {
         pageSize: 500,
         dtn: debouncedSearch,
-        step: stepFilter || undefined,
+        step: stepFilter || drill.step || undefined,
         appType: drill.appType || undefined,
         entryType: drill.entryType || undefined,
         memberIds: drill.memberIds || undefined,
@@ -459,6 +460,9 @@ function DrilldownModal({
     drill.appType ? `App type: ${drill.appType.split("|").join(", ")}` : null,
     drill.entryType
       ? `Entry type: ${drill.entryType.split("|").join(", ")}`
+      : null,
+    drill.step && !stepFilter
+      ? `Steps: ${drill.step.split("|").join(", ")}`
       : null,
     stepFilter ? `Step: ${stepFilter}` : null,
   ]
@@ -995,10 +999,12 @@ export default function InProgressByYearView({ darkMode }) {
   const [unitFilter, setUnitFilter] = useState([]); // unit_id strings
   const [appTypeFilter, setAppTypeFilter] = useState([]);
   const [entryTypeFilter, setEntryTypeFilter] = useState(["ORIGINAL"]);
+  const [stepSel, setStepSel] = useState([]);
   // joined with "|" for the API; also used as stable effect deps
   const appTypeParam = appTypeFilter.join("|");
   const entryTypeParam = entryTypeFilter.join("|");
-  const hasTypeFilter = !!(appTypeParam || entryTypeParam);
+  const stepParam = stepSel.join("|");
+  const hasTypeFilter = !!(appTypeParam || entryTypeParam || stepParam);
   const loadSeq = useRef(0);
   const [includeSupervisors, setIncludeSupervisors] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -1065,7 +1071,11 @@ export default function InProgressByYearView({ darkMode }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getInProgressYearMatrix(appTypeParam, entryTypeParam);
+      const data = await getInProgressYearMatrix(
+        appTypeParam,
+        entryTypeParam,
+        stepParam,
+      );
       if (seq === loadSeq.current) setMatrix(data);
     } catch (err) {
       if (seq === loadSeq.current) setError(err.message);
@@ -1077,7 +1087,7 @@ export default function InProgressByYearView({ darkMode }) {
   // reload whenever the app type / entry type selection changes
   useEffect(() => {
     load();
-  }, [appTypeParam, entryTypeParam]);
+  }, [appTypeParam, entryTypeParam, stepParam]);
 
   const years = matrix?.years || [];
   const visibleUnits = useMemo(() => {
@@ -1165,6 +1175,7 @@ export default function InProgressByYearView({ darkMode }) {
         entryTypeFilter.length
           ? `Entry type: ${entryTypeFilter.join(", ")}`
           : null,
+        stepSel.length ? `Step: ${stepSel.join(", ")}` : null,
       ]
         .filter(Boolean)
         .join("  |  ");
@@ -1355,6 +1366,7 @@ export default function InProgressByYearView({ darkMode }) {
       year,
       appType: appTypeParam,
       entryType: entryTypeParam,
+      step: stepParam,
     });
 
   // ── Styles ──
@@ -1470,6 +1482,18 @@ export default function InProgressByYearView({ darkMode }) {
             }))}
             selected={entryTypeFilter}
             onChange={setEntryTypeFilter}
+            colors={colors}
+            buttonStyle={btn}
+          />
+          <MultiSelect
+            allLabel="All steps"
+            noun="steps"
+            options={(matrix?.steps || []).map((t) => ({
+              value: t,
+              label: t,
+            }))}
+            selected={stepSel}
+            onChange={setStepSel}
             colors={colors}
             buttonStyle={btn}
           />
@@ -1607,6 +1631,7 @@ export default function InProgressByYearView({ darkMode }) {
                       ...d,
                       appType: appTypeParam,
                       entryType: entryTypeParam,
+                      step: stepParam,
                     })
                   }
                 />
