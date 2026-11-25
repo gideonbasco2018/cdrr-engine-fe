@@ -48,7 +48,7 @@ function niceMax(v) {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
-// ── Sample data (kapareho ng shape na dapat ibalik ng backend) ────────────────
+// ── Sample data (same shape the backend should return) ──────────────────────
 // row = { unit_id, unit_name, user_id, name, date: "YYYY-MM-DD", received, completed }
 const MOCK_UNITS = [
   {
@@ -267,7 +267,7 @@ function TrendChart({ buckets, ui, darkMode }) {
               Decked <b style={{ color: C_IN }}>{fmt(hb.received)}</b>
             </span>
             <span>
-              Completed <b style={{ color: C_DONE }}>{fmt(hb.completed)}</b>
+              Done <b style={{ color: C_DONE }}>{fmt(hb.completed)}</b>
             </span>
             <span>
               Net{" "}
@@ -585,10 +585,14 @@ export default function UnitDailyActivity({
           setTarget({
             title: [
               scope.label,
-              metric === "received" ? "Decked" : "Completed",
+              metric === "received" ? "Decked" : "Tasks done",
               b ? b.full : periodLabel,
               stepLabel,
             ].join(" · "),
+            note:
+              metric === "completed"
+                ? "Status shown is the application's current status. A task can be done while the application is still in progress (for example, it was moved to another user)."
+                : undefined,
             workload: {
               metric,
               user_id: scope.user_id,
@@ -860,7 +864,7 @@ export default function UnitDailyActivity({
                     </b>
                   </span>
                   <span>
-                    Completed{" "}
+                    Done{" "}
                     <b style={{ color: C_DONE, fontSize: "0.86rem" }}>
                       {fmt(tt.completed)}
                     </b>
@@ -932,7 +936,7 @@ export default function UnitDailyActivity({
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {[
                   { l: "Decked", v: fmt(scopeTotals.received), c: C_IN },
-                  { l: "Completed", v: fmt(scopeTotals.completed), c: C_DONE },
+                  { l: "Done", v: fmt(scopeTotals.completed), c: C_DONE },
                   {
                     l: "Net",
                     v: `${scopeTotals.received > scopeTotals.completed ? "+" : ""}${fmt(scopeTotals.received - scopeTotals.completed)}`,
@@ -949,7 +953,7 @@ export default function UnitDailyActivity({
                     c: C_IN,
                   },
                   {
-                    l: `Avg completed / ${unitWord}`,
+                    l: `Avg done / ${unitWord}`,
                     v: avg(scopeTotals.completed),
                     c: C_DONE,
                   },
@@ -1001,7 +1005,7 @@ export default function UnitDailyActivity({
                 <b style={{ color: C_IN }}>■</b> Decked (received)
               </span>
               <span>
-                <b style={{ color: C_DONE }}>■</b> Completed
+                <b style={{ color: C_DONE }}>■</b> Done
               </span>
             </div>
             <TrendChart buckets={scopeBuckets} ui={ui} darkMode={darkMode} />
@@ -1037,10 +1041,10 @@ export default function UnitDailyActivity({
                       {selected ? "Member" : "Unit"}
                     </th>
                     <th style={th}>Decked</th>
-                    <th style={th}>Completed</th>
+                    <th style={th}>Done</th>
                     <th style={th}>Net</th>
                     <th style={th}>Rate</th>
-                    <th style={th}>Avg completed / {unitWord}</th>
+                    <th style={th}>Avg done / {unitWord}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1153,8 +1157,8 @@ export default function UnitDailyActivity({
               }}
             >
               Each cell: <b style={{ color: C_IN }}>decked</b> /{" "}
-              <b style={{ color: C_DONE }}>completed</b> · click a number to
-              view the applications
+              <b style={{ color: C_DONE }}>done</b> · click a number to view the
+              applications
               {mode === "day" ? " · weekends with no records are hidden" : ""}
             </p>
             <div style={{ overflow: "auto", maxHeight: 520 }}>

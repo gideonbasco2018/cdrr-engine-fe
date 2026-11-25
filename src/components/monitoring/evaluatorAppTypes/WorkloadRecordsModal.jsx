@@ -191,11 +191,11 @@ export default function WorkloadRecordsModal({
         "Step",
         "Entry Type",
         "Date Decked",
-        "Date Completed",
+        "Date Done",
         "Date Received (Center)",
         "Date Released",
         "Type of Doc Released",
-        "Status",
+        "Application Status",
         "Brand Name",
         "Generic Name",
       ];
@@ -405,6 +405,17 @@ export default function WorkloadRecordsModal({
                   ? "Loading…"
                   : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
               </div>
+              {target.note && (
+                <div
+                  style={{
+                    fontSize: "0.68rem",
+                    color: ui.textMuted,
+                    marginTop: 2,
+                  }}
+                >
+                  {target.note}
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
@@ -662,11 +673,11 @@ export default function WorkloadRecordsModal({
                       <th style={th}>Step</th>
                       <th style={th}>Entry Type</th>
                       <th style={th}>Date Decked</th>
-                      <th style={th}>Date Completed</th>
+                      <th style={th}>Date Done</th>
                       <th style={th}>Date Received (Center)</th>
                       <th style={th}>Date Released</th>
                       <th style={th}>Type of Doc Released</th>
-                      <th style={th}>Status</th>
+                      <th style={th}>Application Status</th>
                       <th style={th}>Brand Name</th>
                       <th style={th}>Generic Name</th>
                       <th
