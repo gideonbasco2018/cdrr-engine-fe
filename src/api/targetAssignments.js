@@ -346,6 +346,7 @@ export const getUnitInProgressTasks = async (
     dateTo,
     entryType,
     memberName,
+    memberIds,
     directorsTarget,
     sortBy,
     sortDir,
@@ -367,6 +368,7 @@ export const getUnitInProgressTasks = async (
           date_to: dateTo || undefined,
           entry_type: entryType || undefined,
           member_name: memberName || undefined,
+          member_ids: memberIds || undefined,
           directors_target: directorsTarget || undefined,
           sort_by: sortBy || undefined,
           sort_dir: sortDir || undefined,
@@ -497,6 +499,7 @@ export const getInProgressStepSummary = async ({
   year,
   appType,
   entryType,
+  memberIds,
 } = {}) => {
   try {
     const response = await API.get(
@@ -508,6 +511,7 @@ export const getInProgressStepSummary = async ({
           year: year || undefined,
           app_type: appType || undefined,
           entry_type: entryType || undefined,
+          member_ids: memberIds || undefined,
         },
       }
     );
