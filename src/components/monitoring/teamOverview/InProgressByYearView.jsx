@@ -22,6 +22,9 @@ import DoctrackModal from "../../reports/actions/DoctrackModal.jsx";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal.jsx";
 import ApplicationLogsModal from "../../tasks/ApplicationLogsModal.jsx";
 
+// space left under the component (px)
+const BOTTOM_GAP = 24;
+
 function usePalette(darkMode) {
   return darkMode
     ? {
@@ -986,6 +989,429 @@ function DrilldownModal({
     </div>
   );
 }
+
+// ── Animated chart per unit ──────────────────────────────────────────
+function useCountUp(target, ms = 800) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf;
+    const start = performance.now();
+    const tick = (t) => {
+      const p = Math.min(1, (t - start) / ms);
+      setV(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
+function UnitChartCell({
+  unit,
+  years,
+  mode, // "year" | "member" | "memberyear"
+  colors,
+  grandTotal,
+  rowSpan,
+  td,
+  onDrill,
+}) {
+  const [go, setGo] = useState(false);
+  const dataKey = JSON.stringify([unit.counts, unit.total, mode]);
+  useEffect(() => {
+    setGo(false);
+    const id = setTimeout(() => setGo(true), 40);
+    return () => clearTimeout(id);
+  }, [dataKey]);
+
+  const animatedTotal = useCountUp(unit.total);
+  const share = grandTotal ? (unit.total / grandTotal) * 100 : 0;
+  const PEAK = "#f59e0b";
+  const RANK = [PEAK, "#94a3b8", "#b45309"]; // gold, silver, bronze
+  const EASE = "cubic-bezier(.2,.8,.2,1)";
+
+  const unitDrill = (year) =>
+    onDrill({
+      scope: "unit",
+      unitId: unit.unit_id,
+      unitName: unit.unit_name,
+      memberIds: unit.scopeMemberIds || undefined,
+      label: unit.scopeMemberIds ? "without supervisors" : undefined,
+      year,
+    });
+  const memberDrill = (m, year = null) =>
+    onDrill({
+      scope: "member",
+      unitId: unit.unit_id,
+      unitName: unit.unit_name,
+      memberId: m.member_user_id,
+      memberName: m.member_name,
+      year,
+    });
+
+  const yearVals = years.map((y) => ({ y, n: unit.counts[y] || 0 }));
+  const yearMax = Math.max(1, ...yearVals.map((v) => v.n));
+
+  // every member that has work in that year (no top-N limit)
+  const perYear = years.map((y) => {
+    const list = unit.members
+      .filter((m) => (m.counts[y] || 0) > 0)
+      .sort((a, b) => b.counts[y] - a.counts[y]);
+    return {
+      y,
+      total: unit.counts[y] || 0,
+      list,
+      max: Math.max(1, ...list.map((m) => m.counts[y])),
+    };
+  });
+
+  return (
+    <td
+      rowSpan={rowSpan}
+      style={{
+        ...td,
+        position: "relative",
+        padding: 0,
+        width: "55%",
+        minWidth: 380,
+        verticalAlign: "top",
+        background: colors.cardBg,
+      }}
+    >
+      <div style={{ minHeight: 150 }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          padding: "10px 16px 8px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          overflow: "hidden",
+        }}
+      >
+        {/* total + share */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: 800,
+              color: colors.accent,
+              lineHeight: 1,
+            }}
+          >
+            {animatedTotal.toLocaleString()}
+          </span>
+          <span style={{ fontSize: "0.62rem", color: colors.textTertiary }}>
+            in progress · {share.toFixed(1)}% of all
+          </span>
+        </div>
+        <div
+          style={{
+            height: 3,
+            borderRadius: 3,
+            background: colors.rowHover,
+            overflow: "hidden",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: go ? `${share}%` : 0,
+              height: "100%",
+              background: `linear-gradient(90deg, ${colors.accent}, #8b5cf6)`,
+              transition: `width 0.9s ${EASE}`,
+            }}
+          />
+        </div>
+
+        {/* ───────── BY YEAR (boxed chart) ───────── */}
+        {mode === "year" && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 10,
+              padding: "12px 14px 6px",
+              background: colors.pageBg,
+            }}
+          >
+            <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+              {/* gridlines */}
+              {[0, 25, 50, 75].map((p) => (
+                <div
+                  key={p}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: `${p}%`,
+                    borderTop: `1px ${p === 0 ? "solid" : "dashed"} ${colors.cardBorder}`,
+                    opacity: p === 0 ? 1 : 0.6,
+                  }}
+                />
+              ))}
+              {/* bars */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "flex-end",
+                }}
+              >
+                {yearVals.map(({ y, n }, i) => {
+                  const peak = n > 0 && n === yearMax;
+                  const prev = i > 0 ? yearVals[i - 1].n : 0;
+                  const delta =
+                    prev > 0 && n > 0
+                      ? Math.round(((n - prev) / prev) * 100)
+                      : null;
+                  const label = {
+                    background: colors.pageBg, // hides the gridline behind text
+                    padding: "0 4px",
+                    borderRadius: 4,
+                    lineHeight: 1.3,
+                  };
+                  return (
+                    <div
+                      key={y}
+                      onClick={() => n > 0 && unitDrill(y)}
+                      title={`${y}: ${n}`}
+                      style={{
+                        flex: 1,
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-end",
+                        alignItems: "center",
+                        cursor: n > 0 ? "pointer" : "default",
+                      }}
+                    >
+                      {delta !== null && (
+                        <span
+                          style={{
+                            ...label,
+                            fontSize: "0.58rem",
+                            fontWeight: 700,
+                            color: delta > 0 ? "#ef4444" : "#22c55e",
+                            opacity: go ? 1 : 0,
+                            transition: `opacity 0.4s ease ${0.6 + i * 0.08}s`,
+                          }}
+                        >
+                          {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}%
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          ...label,
+                          fontSize: "0.7rem",
+                          fontWeight: 800,
+                          color: peak ? PEAK : colors.textPrimary,
+                          marginBottom: 3,
+                          opacity: go ? 1 : 0,
+                          transition: `opacity 0.4s ease ${0.5 + i * 0.08}s`,
+                        }}
+                      >
+                        {n || ""}
+                      </span>
+                      <div
+                        style={{
+                          width: "min(46%, 38px)",
+                          height: go ? `${(n / yearMax) * 66}%` : 0,
+                          minHeight: go && n > 0 ? 3 : 0,
+                          borderRadius: "7px 7px 2px 2px",
+                          background: peak
+                            ? `linear-gradient(180deg, #fbbf24, ${PEAK} 45%, #b45309)`
+                            : `linear-gradient(180deg, #60a5fa, ${colors.accent} 45%, #1d4ed8)`,
+                          boxShadow: peak
+                            ? "0 0 14px rgba(245,158,11,0.45)"
+                            : "0 0 10px rgba(59,130,246,0.25)",
+                          transition: `height 0.9s ${EASE} ${i * 0.1}s, filter 0.15s, transform 0.15s`,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.filter = "brightness(1.2)";
+                          e.currentTarget.style.transform = "scaleX(1.12)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.filter = "none";
+                          e.currentTarget.style.transform = "none";
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display: "flex", marginTop: 4 }}>
+              {yearVals.map(({ y }) => (
+                <span
+                  key={y}
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: "0.62rem",
+                    fontWeight: 600,
+                    color: colors.textTertiary,
+                  }}
+                >
+                  {y}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ───────── MEMBERS BY YEAR (all members, scroll inside) ───────── */}
+        {mode === "memberyear" && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              display: "grid",
+              gridTemplateColumns: `repeat(${years.length}, minmax(0, 1fr))`,
+              gridTemplateRows: "minmax(0, 1fr)",
+              gap: 10,
+            }}
+          >
+            {perYear.map((col, ci) => (
+              <div
+                key={col.y}
+                style={{
+                  minWidth: 0,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  padding: "6px 8px",
+                  borderRadius: 8,
+                  background: colors.rowHover,
+                  border: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    borderBottom: `1px solid ${colors.cardBorder}`,
+                    paddingBottom: 3,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    onClick={() => col.total > 0 && unitDrill(col.y)}
+                    style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 800,
+                      color: colors.textPrimary,
+                      cursor: col.total > 0 ? "pointer" : "default",
+                    }}
+                  >
+                    {col.y}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      color: colors.accent,
+                    }}
+                  >
+                    {col.total}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflowY: "auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                    paddingRight: 2,
+                  }}
+                >
+                  {col.list.length === 0 && (
+                    <span
+                      style={{ fontSize: "0.6rem", color: colors.textTertiary }}
+                    >
+                      —
+                    </span>
+                  )}
+                  {col.list.map((m, i) => (
+                    <div
+                      key={m.member_user_id}
+                      onClick={() => memberDrill(m, col.y)}
+                      title={`${m.member_name} (${col.y}): ${m.counts[col.y]}`}
+                      style={{ cursor: "pointer", minWidth: 0, flexShrink: 0 }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 4,
+                          fontSize: "0.6rem",
+                          color: colors.textSecondary,
+                        }}
+                      >
+                        <span
+                          style={{
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            minWidth: 0,
+                          }}
+                        >
+                          <b style={{ color: RANK[i] || colors.textTertiary }}>
+                            {i + 1}.
+                          </b>{" "}
+                          {m.member_name}
+                        </span>
+                        <span
+                          style={{ fontWeight: 800, color: colors.textPrimary }}
+                        >
+                          {m.counts[col.y]}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          height: 4,
+                          borderRadius: 3,
+                          background: colors.cardBorder,
+                          overflow: "hidden",
+                          marginTop: 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: go
+                              ? `${(m.counts[col.y] / col.max) * 100}%`
+                              : 0,
+                            height: "100%",
+                            borderRadius: 3,
+                            background:
+                              i === 0
+                                ? "linear-gradient(90deg, #f59e0b, #b45309)"
+                                : `linear-gradient(90deg, #60a5fa, ${colors.accent})`,
+                            transition: `width 0.8s ${EASE} ${ci * 0.08 + i * 0.04}s`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </td>
+  );
+}
 // ══════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════
@@ -1006,6 +1432,23 @@ export default function InProgressByYearView({ darkMode }) {
   const stepParam = stepSel.join("|");
   const hasTypeFilter = !!(appTypeParam || entryTypeParam || stepParam);
   const loadSeq = useRef(0);
+  const [showCharts, setShowCharts] = useState(true);
+  const [chartMode, setChartMode] = useState("year"); // "year" | "member"
+
+  // Fit the component to the remaining screen height
+  const rootRef = useRef(null);
+  const [boxH, setBoxH] = useState(null);
+  const ready = !!matrix;
+  useEffect(() => {
+    const fit = () => {
+      if (!rootRef.current) return;
+      const top = rootRef.current.getBoundingClientRect().top;
+      setBoxH(Math.max(420, window.innerHeight - top - BOTTOM_GAP));
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [ready]);
   const [includeSupervisors, setIncludeSupervisors] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [drill, setDrill] = useState(null);
@@ -1299,6 +1742,9 @@ export default function InProgressByYearView({ darkMode }) {
         head,
         body,
         foot,
+        // print the Grand total only once, on the last page
+        // (default "everyPage" repeats it on every page)
+        showFoot: "lastPage",
         theme: "grid",
         styles: { fontSize: 9, cellPadding: 4, lineColor: [150, 150, 150] },
         // plain look: white header/footer, black bold text, gray grid lines
@@ -1387,6 +1833,14 @@ export default function InProgressByYearView({ darkMode }) {
     color: colors.textSecondary,
   };
   const num = { ...td, textAlign: "center" };
+
+  // Frozen header: row 1 sticks at the top, row 2 (years) sticks right
+  // under it. HEAD_ROW1_H must match the real height of the first row.
+  const HEAD_ROW1_H = 31;
+  const thTop = { ...th, position: "sticky", top: 0, zIndex: 3 };
+  const thTop2 = { ...th, position: "sticky", top: HEAD_ROW1_H, zIndex: 3 };
+  // Grand total: normal row at the end of the table (not frozen)
+  const thFoot = { ...th };
   const btn = {
     padding: "5px 12px",
     borderRadius: 6,
@@ -1415,9 +1869,12 @@ export default function InProgressByYearView({ darkMode }) {
 
   return (
     <div
+      ref={rootRef}
       style={{
-        flex: 1,
-        minHeight: 0,
+        // measured height so the table area scrolls (not the whole page);
+        // that is what makes the sticky header/footer work
+        height: boxH ?? "calc(100vh - 140px)",
+        minHeight: 420,
         display: "flex",
         flexDirection: "column",
         border: `1px solid ${colors.cardBorder}`,
@@ -1540,6 +1997,19 @@ export default function InProgressByYearView({ darkMode }) {
             Supervisors
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowCharts((v) => !v)}
+            title="Show or hide the charts"
+            style={{
+              ...btn,
+              color: showCharts ? colors.accent : colors.textSecondary,
+              borderColor: showCharts ? colors.accent : colors.cardBorder,
+            }}
+          >
+            📈 Charts
+          </button>
+
           <button onClick={load} disabled={loading} style={btn}>
             {loading ? "Refreshing…" : "↻ Refresh"}
           </button>
@@ -1572,7 +2042,7 @@ export default function InProgressByYearView({ darkMode }) {
       )}
 
       {/* Table */}
-      <div style={{ flex: 1, overflow: "auto", padding: "1rem" }}>
+      <div style={{ flex: 1, overflow: "auto", padding: "0 1rem 1rem" }}>
         {visibleUnits.length === 0 ? (
           <div
             style={{
@@ -1589,37 +2059,85 @@ export default function InProgressByYearView({ darkMode }) {
             style={{
               borderCollapse: "collapse",
               background: colors.cardBg,
+              width: "100%",
               minWidth: 520,
             }}
           >
             <thead>
               <tr>
-                <th style={th} rowSpan={2}>
+                <th style={thTop} rowSpan={2}>
                   Unit
                 </th>
-                <th style={th} rowSpan={2}>
+                <th style={thTop} rowSpan={2}>
                   Member
                 </th>
-                <th style={th} colSpan={years.length + (hasNoDate ? 1 : 0)}>
+                <th style={thTop} colSpan={years.length + (hasNoDate ? 1 : 0)}>
                   Received by center
                 </th>
-                <th style={th} rowSpan={2}>
+                <th style={thTop} rowSpan={2}>
                   Total
                 </th>
+                {showCharts && (
+                  <th
+                    style={{ ...thTop, minWidth: 380, width: "55%" }}
+                    rowSpan={2}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        justifyContent: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {[
+                        { k: "year", l: "By year" },
+                        { k: "memberyear", l: "Members by year" },
+                      ].map((t) => (
+                        <button
+                          key={t.k}
+                          type="button"
+                          onClick={() => setChartMode(t.k)}
+                          style={{
+                            padding: "3px 12px",
+                            borderRadius: 9999,
+                            border: `1px solid ${colors.headText}`,
+                            background:
+                              chartMode === t.k
+                                ? colors.headText
+                                : "transparent",
+                            color:
+                              chartMode === t.k
+                                ? colors.headBg
+                                : colors.headText,
+                            fontSize: "0.7rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {t.l}
+                        </button>
+                      ))}
+                    </div>
+                  </th>
+                )}
               </tr>
               <tr>
                 {years.map((y) => (
-                  <th key={y} style={th}>
+                  <th key={y} style={thTop2}>
                     {y}
                   </th>
                 ))}
-                {hasNoDate && <th style={th}>No date</th>}
+                {hasNoDate && <th style={thTop2}>No date</th>}
               </tr>
             </thead>
             <tbody>
               {visibleUnits.map((u) => (
                 <UnitRows
                   key={u.unit_id}
+                  showCharts={showCharts}
+                  chartMode={chartMode}
+                  grandTotal={visibleTotal}
                   unit={u}
                   years={years}
                   hasNoDate={hasNoDate}
@@ -1639,29 +2157,30 @@ export default function InProgressByYearView({ darkMode }) {
             </tbody>
             <tfoot>
               <tr>
-                <td style={{ ...th, textAlign: "left" }} colSpan={2}>
+                <td style={{ ...thFoot, textAlign: "left" }} colSpan={2}>
                   Grand total
                 </td>
                 {years.map((y) => (
                   <CountCell
                     key={y}
                     value={yearTotals[y]}
-                    style={th}
+                    style={thFoot}
                     colors={colors}
                     linkColor={colors.headText}
                     title={`All units — ${y}`}
                     onClick={() => grandDrill(y)}
                   />
                 ))}
-                {hasNoDate && <td style={th}>{noDateTotal || ""}</td>}
+                {hasNoDate && <td style={thFoot}>{noDateTotal || ""}</td>}
                 <CountCell
                   value={visibleTotal}
-                  style={th}
+                  style={thFoot}
                   colors={colors}
                   linkColor={colors.headText}
                   title="All units — all years"
                   onClick={() => grandDrill(null)}
                 />
+                {showCharts && <td style={thFoot} />}
               </tr>
             </tfoot>
           </table>
@@ -1739,7 +2258,18 @@ function CountCell({ value, style, colors, onClick, title, linkColor }) {
 // One unit block: unit cell (rowSpan) + member rows, then (if the unit
 // has supervisors/statisticians) a "Total" row of the members above and
 // one row per supervisor/statistician, then the Unit total (everyone).
-function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
+function UnitRows({
+  unit,
+  years,
+  hasNoDate,
+  td,
+  num,
+  colors,
+  onDrill,
+  showCharts,
+  chartMode,
+  grandTotal,
+}) {
   const {
     rows: memberRows,
     supervisors,
@@ -1868,6 +2398,18 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
             </td>
           )}
           {memberCells(m)}
+          {idx === 0 && showCharts && (
+            <UnitChartCell
+              unit={unit}
+              years={years}
+              mode={chartMode}
+              colors={colors}
+              grandTotal={grandTotal}
+              rowSpan={rowCount}
+              td={td}
+              onDrill={onDrill}
+            />
+          )}
         </tr>
       ))}
 
