@@ -1697,9 +1697,12 @@ function MonitoringPage({ darkMode }) {
             style={{
               flex: 1,
               minWidth: 0,
-              padding: isMobile
-                ? "10px 10px 100px 10px"
-                : "14px 14px 100px 14px",
+              padding:
+                activeNav === "inprogressbyyear"
+                  ? "14px"
+                  : isMobile
+                    ? "10px 10px 100px 10px"
+                    : "14px 14px 100px 14px",
               boxSizing: "border-box",
             }}
           >
