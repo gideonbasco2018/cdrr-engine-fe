@@ -194,6 +194,19 @@ export async function getMyGMPTasks(params = {}) {
   return res.data;
 }
 
+// Unassigned (UNCLAIMED) OD Receiving / OD Releasing tasks the user may claim,
+// plus the steps they can claim from (by group) — { claimable_steps, total, data }.
+export async function getUnclaimedGMPTasks() {
+  const res = await API.get("/gmp/tasks/unclaimed");
+  return res.data;
+}
+
+// Claim one unassigned task. 409 = someone else got it first.
+export async function claimGMPLog(logId) {
+  const res = await API.patch(`/gmp/logs/${logId}/claim`);
+  return res.data;
+}
+
 export async function markTaskReceived(logId) {
   const res = await API.patch(`/gmp/logs/${logId}/receive`);
   return res.data;

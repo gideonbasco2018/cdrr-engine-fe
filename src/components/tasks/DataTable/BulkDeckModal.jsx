@@ -148,9 +148,9 @@ const formatSignedDate = (dateStr) => {
 const buildODReleasingDoctrack = (dateStr, decision = "") => {
   const formatted = formatSignedDate(dateStr);
   if (decision === "Signed and Scanned, forwarded to AFO Records") {
-    return `Signed (${formatted}) by CDRR-OIC Director and scanned, forwarded to AFO Records`;
+    return `Signed (${formatted}) by CDRR Director and scanned, forwarded to AFO Records`;
   }
-  return `Signed (${formatted}) by CDRR-OIC Director, stamped and scanned, forwarded to AFO Records`;
+  return `Signed (${formatted}) by CDRR Director, stamped and scanned, forwarded to AFO Records`;
 };
 const Spinner = ({ size = 13 }) => (
   <span

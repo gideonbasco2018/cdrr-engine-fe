@@ -852,7 +852,7 @@ function ChecklistPage({ darkMode }) {
       [`Label: ${active.label || ""}`],
       // TEST LAYOUT: Date/Time Inserted and Inserted By left out for now.
       // Two header rows — "Scanned" sits over Clean / Duplicate (same as the PDF).
-      ["#", "DTN", "Subject", "Signed by OIC Director", "Scanned", ""],
+      ["#", "DTN", "Subject", "Signed by CDRR Director", "Scanned", ""],
       ["", "", "", "", "Clean", "Duplicate"],
       ...active.items.map((item, i) => [i + 1, item.dtn, subjectText(item), "", "", ""]),
     ];
@@ -860,7 +860,7 @@ function ChecklistPage({ darkMode }) {
     worksheet["!cols"] = [{ wch: 5 }, { wch: 18 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
     const h1 = 6; // first header row (0-based)
     worksheet["!merges"] = [
-      // #, DTN, Subject, Signed by OIC Director: span both header rows
+      // #, DTN, Subject, Signed by CDRR Director: span both header rows
       ...[0, 1, 2, 3].map((c) => ({ s: { r: h1, c }, e: { r: h1 + 1, c } })),
       // "Scanned" over Clean + Duplicate
       { s: { r: h1, c: 4 }, e: { r: h1, c: 5 } },
@@ -878,7 +878,7 @@ function ChecklistPage({ darkMode }) {
     const left = 8; // small side margins so the subject gets more room
     // [width mm] — TEST LAYOUT: Date/Time Inserted and Inserted By left out
     // for now. Total 194 mm (A4 portrait minus 8 mm margins).
-    //   # | DTN | Subject | Signed by OIC Director | Scanned: Clean | Duplicate
+    //   # | DTN | Subject | Signed by CDRR Director | Scanned: Clean | Duplicate
     // DTN column is 36 mm so its CODE128 barcode is wide enough to scan
     // (~0.27 mm per bar, with a blank margin each side).
     const cols = [8, 36, 105, 15, 15, 15];
@@ -931,7 +931,7 @@ function ChecklistPage({ darkMode }) {
       headCell(colX[1], y, cols[1], full, "DTN");
       headCell(colX[2], y, cols[2], full, "Subject");
       // Smaller fonts so the labels fit the narrow 15 mm tick columns.
-      headCell(colX[3], y, cols[3], full, ["Signed by", "OIC", "Director"], 6.5);
+      headCell(colX[3], y, cols[3], full, ["Signed by", "CDRR", "Director"], 6.5);
       headCell(colX[4], y, cols[4] + cols[5], headH, "Scanned", 8.5);
       headCell(colX[4], y + headH, cols[4], headH, "Clean", 7);
       headCell(colX[5], y + headH, cols[5], headH, "Duplicate", 7);

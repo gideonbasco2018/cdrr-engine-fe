@@ -273,7 +273,7 @@ const GMP_DOCTRACK_REMARKS = {
   "Return to Evaluator":            "Returned to FGMP Evaluator",
   "Forwarded to OD Receiving":      "Signed by LRD Chief and forwarded to CDRR Director for signing",
   "Return to QA Admin":             "Returned to FGMP QA Admin",
-  "Endorsed to CDRR Director for signature": "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
+  "Endorsed to CDRR Director for signature": "Received by CDRR - OD; Forwarded to CDRR Director for Signature",
   "Endorsed to OD Releasing":       "Signed by CDRR Director, forwarded to OD-Releasing",
   "Return to LRD Chief Admin":      "Returned to LRD Chief Admin",
   "Forwarded to CDRR FGMP":          "Reviewed by FROO; Returned to FGMP Evaluator",
@@ -507,6 +507,16 @@ const GMP_ACTION_ASSIGNEE_GROUPS = {
   "Return to Evaluator":         { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
   "Return to QA Admin":          { groupId: 34, shortLabel: "QA Admin",         groupLabel: "QA Admin Group" },
   "Return to LRD Chief Admin":   { groupId: 17, shortLabel: "LRD Chief Admin",  groupLabel: "LRD Chief Admin Group" },
+};
+
+// Forwarding actions whose NEXT step is an "Unclaimed" pool (CPR's OD-Receiving
+// / OD-Releasing, same two offices): nobody is picked — the task waits in that
+// step's Unclaimed tab and any member of its group claims it. Mirrors
+// GMP_UNCLAIMED_STEP_GROUPS in app/crud/gmp_record.py. The value is the step the
+// task lands in.
+const GMP_UNCLAIMED_NEXT_ACTIONS = {
+  "Forwarded to OD Receiving": "OD Receiving",
+  "Endorsed to OD Releasing":  "OD Releasing",
 };
 
 // Actions that send the application BACKWARD. Their assignee dropdown
@@ -2214,6 +2224,7 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
   approvalDecision, onApprovalDecisionChange, recommendationOptions, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
   needsTypeOfIssuance, typeOfIssuanceOptions, typeOfIssuanceValue, onTypeOfIssuanceChange, typeOfIssuanceLocked,
   needsAssigneeGroup, assigneeGroupConfig, assigneeGroupOptions, loadingAssigneeGroup, assigneeUserId, onAssigneeGroupChange,
+  unclaimedNextStep,
   isMultiAssignee, assigneeUserIds, onToggleAssigneeUserId,
   sendBackAction,
   isLrdChiefAdmin, needsLrdDecision, lrdDecisionValue, onLrdDecisionChange,
@@ -2668,6 +2679,16 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
           (see above). needsAssigneeGroup itself isn't role-specific, so
           without this guard it would render a second time here even for
           Eval/Checker. */}
+      {/* Forwarding into an Unclaimed pool: no person to pick. */}
+      {!isEvalOrChecker && unclaimedNextStep && (
+        <div style={{
+          padding: "0.7rem 0.9rem", borderRadius: 10, fontSize: "0.74rem", lineHeight: 1.5,
+          color: colors.textPrimary, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.40)",
+        }}>
+          🕓 This goes to the <b>{unclaimedNextStep}</b> <b>Unclaimed</b> tab — no one is picked. Any{" "}
+          {unclaimedNextStep} group member can claim it.
+        </div>
+      )}
       {!isEvalOrChecker && needsAssigneeGroup && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>
@@ -3200,7 +3221,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   };
   const buildOdReleasingDoctrack = (dateStr) => {
     const datePart = fmtSignedDate(dateStr);
-    return `Signed${datePart ? ` (${datePart})` : ""} by CDRR-OIC Director; Scanned, Stamped and Forwarded to AFO Records`;
+    return `Signed${datePart ? ` (${datePart})` : ""} by CDRR Director; Scanned, Stamped and Forwarded to AFO Records`;
   };
   const handleOdReleasingDecisionChange = (val) => {
     setOdReleasingDecision(val);
@@ -3368,7 +3389,10 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const assigneeGroupConfig = isEvalOrChecker
     ? GMP_ACTION_ASSIGNEE_GROUPS[action]
     : GMP_ACTION_ASSIGNEE_GROUPS[decision];
-  const needsAssigneeGroup  = !!assigneeGroupConfig;
+  // The step this action drops the task into when that step is an Unclaimed
+  // pool (OD Receiving / OD Releasing) — then no person is picked at all.
+  const unclaimedNextStep   = GMP_UNCLAIMED_NEXT_ACTIONS[isEvalOrChecker ? action : decision] ?? null;
+  const needsAssigneeGroup  = !!assigneeGroupConfig && !unclaimedNextStep;
   // Multi-assignee: a checklist (several people at once) instead of a single
   // dropdown — currently only OD Receiving → CDRR-OD Signature Facilitator.
   const isMultiAssignee = !!assigneeGroupConfig?.multi;
@@ -3601,6 +3625,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           ? "A new compliance entry will be logged and the task will remain assigned to you."
           : `Log will complete and forward per "${action}".`)
     : (!decision ? "Select a decision to proceed."
+        : unclaimedNextStep ? `Log will complete and an unassigned "${unclaimedNextStep}" task will wait in its Unclaimed tab for the group to claim.`
         : nextStepLabelForInfo ? `Log will complete and a new "${nextStepLabelForInfo}" log will be created.`
         : "This is the final step — log will complete with no further assignment.");
 
@@ -4245,6 +4270,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 typeOfIssuanceValue={finalTypeOfIssuance} onTypeOfIssuanceChange={setFinalTypeOfIssuance}
                 typeOfIssuanceLocked={typeOfIssuanceLocked}
                 needsAssigneeGroup={needsAssigneeGroup} assigneeGroupConfig={assigneeGroupConfig}
+                unclaimedNextStep={unclaimedNextStep}
                 assigneeGroupOptions={assigneeGroupOptions} loadingAssigneeGroup={loadingAssigneeGroup}
                 assigneeUserId={assigneeUserId} onAssigneeGroupChange={handleAssigneeGroupChange}
                 isMultiAssignee={isMultiAssignee} assigneeUserIds={assigneeUserIds} onToggleAssigneeUserId={toggleAssigneeUserId}

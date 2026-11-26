@@ -3,7 +3,7 @@
 // Mirrors the production TaskPage.jsx pattern exactly.
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getMyGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
+import { getMyGMPTasks, getUnclaimedGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
 import { getUser } from "../api/auth";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { GMP_STEPS, FONT } from "../components/gmp/shared/constants";
@@ -13,6 +13,7 @@ import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
 import GMPBulkEndorseModal, { GMP_BULK_ENDORSE_CONFIG } from "../components/gmp/tasks/GMPBulkEndorseModal";
+import GMPClaimModal from "../components/gmp/tasks/GMPClaimModal";
 import GMPBulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
 import { parseDtnSearch, handleMultilinePaste, DtnSearchSummary } from "../components/gmp/shared/dtnSearch";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
@@ -347,6 +348,13 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [data,           setData]           = useState([]);
   const [allStepsData,   setAllStepsData]   = useState([]);
   const [activeTab,      setActiveTab]      = useState(null);
+  // OD Receiving / OD Releasing have an "Unclaimed" pool next to "My Tasks":
+  // tasks nobody owns yet, which any member of the step's group can claim.
+  // `claimableSteps` = the pool steps this user belongs to the group of.
+  const [unclaimedData,  setUnclaimedData]  = useState([]);
+  const [claimableSteps, setClaimableSteps] = useState([]);
+  const [subTab,         setSubTab]         = useState("mine"); // "mine" | "unclaimed"
+  const [claimTasks,     setClaimTasks]     = useState(null);   // tasks in the open Claim popup
   const [selectedRows,   setSelectedRows]   = useState([]);
   // Starts true so the first paint is skeleton rows (matches GMPQueuePage),
   // not a blank card, while the user is resolved + the fetch runs.
@@ -460,6 +468,19 @@ export default function GMPTasksPage({ darkMode = false }) {
       const mapped = (res.data || []).map(mapGMPTask);
       setAllStepsData(mapped);
 
+      // The Unclaimed pool is separate from "my tasks". A failure here must not
+      // stop My Tasks from loading, so it is fetched on its own and ignored on error.
+      let claimable = [];
+      try {
+        const pool = await getUnclaimedGMPTasks();
+        claimable = pool.claimable_steps || [];
+        setUnclaimedData((pool.data || []).map(mapGMPTask));
+      } catch (e) {
+        console.error("Failed to load unclaimed tasks", e);
+        setUnclaimedData([]);
+      }
+      setClaimableSteps(claimable);
+
       // Only auto-select first tab on the very first load (when activeTab is null)
       let nextActiveTab = activeTab;
       setActiveTab((prev) => {
@@ -467,6 +488,12 @@ export default function GMPTasksPage({ darkMode = false }) {
         nextActiveTab = firstTab ?? prev;
         return nextActiveTab;
       });
+      // A user with no tasks of their own but a pool to claim from lands there.
+      if (!nextActiveTab && claimable.length) {
+        nextActiveTab = claimable[0];
+        setActiveTab(claimable[0]);
+        setSubTab("unclaimed");
+      }
 
       // "Compliance" is a virtual tab (Evaluator logs carrying a
       // deadline_date) with no backend equivalent, so the active tab's rows
@@ -523,9 +550,26 @@ export default function GMPTasksPage({ darkMode = false }) {
     }
     return seen;
   }, [allStepsData]);
+  // The tabs shown: the user's own steps plus any Unclaimed-pool step they can
+  // claim from (so e.g. an OD Receiving member sees that tab with 0 own tasks).
+  const tabSteps = useMemo(() => {
+    const extra = claimableSteps.filter((s) => !steps.includes(s));
+    return [...steps, ...extra];
+  }, [steps, claimableSteps]);
   const stepCounts = useMemo(() =>
-    steps.reduce((acc, s) => { acc[s] = allStepsData.filter((d) => getTabKey(d) === s).length; return acc; }, {}),
-    [steps, allStepsData]);
+    tabSteps.reduce((acc, s) => { acc[s] = allStepsData.filter((d) => getTabKey(d) === s).length; return acc; }, {}),
+    [tabSteps, allStepsData]);
+  const stepUnclaimedCounts = useMemo(() =>
+    tabSteps.reduce((acc, s) => { acc[s] = unclaimedData.filter((d) => d.applicationStep === s).length; return acc; }, {}),
+    [tabSteps, unclaimedData]);
+  const isClaimStep = claimableSteps.includes(activeTab);
+  const isUnclaimedView = isClaimStep && subTab === "unclaimed";
+  // The rows the table works on: the user's own tasks for the tab, or — in the
+  // Unclaimed view — the pool for that step. Everything below reads `viewData`.
+  const viewData = useMemo(
+    () => (isUnclaimedView ? unclaimedData.filter((d) => d.applicationStep === activeTab) : data),
+    [isUnclaimedView, unclaimedData, activeTab, data],
+  );
   const hasOverdueCompliance = useMemo(
     () => allStepsData.some((t) => isComplianceTask(t) && workingDaysUntil(t.deadlineDate) < 0),
     [allStepsData]
@@ -579,7 +623,7 @@ export default function GMPTasksPage({ darkMode = false }) {
     // `getValues` returns an array so a multi-value field (all_issuance_types)
     // can count towards every value it carries, not just a single r[field].
     const buildGroup = (label, key, getValues, colorMap) => {
-      const base = data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick, key));
+      const base = viewData.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick, key));
       const counts = {};
       base.forEach((r) => {
         for (const v of getValues(r)) {
@@ -605,7 +649,7 @@ export default function GMPTasksPage({ darkMode = false }) {
       buildGroup("Transaction Type", "transaction_type", (r) => [r.transaction_type]),
       buildGroup("Issuance Type", "type_of_issuance", (r) => r.all_issuance_types || []),
     ];
-  }, [data, activeQuick, filters, search, originFilter, activeTab]);
+  }, [viewData, activeQuick, filters, search, originFilter, activeTab]);
 
   const handleSidebarSelect = (key, value) => {
     setActiveQuick((prev) => ({
@@ -616,8 +660,8 @@ export default function GMPTasksPage({ darkMode = false }) {
   };
 
   const filteredData = useMemo(() => {
-    return data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
-  }, [data, filters, activeQuick, search, originFilter, activeTab]);
+    return viewData.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
+  }, [viewData, filters, activeQuick, search, originFilter, activeTab]);
 
   // Multi-DTN search only: which requested DTNs are in this tab's results,
   // and how many of the rest are waiting in one of the user's other tabs.
@@ -696,6 +740,12 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const handleTabChange = (step) => {
     setActiveTab(step); setSelectedRows([]);
+    // On an Unclaimed-pool step, open on whichever list has something: the
+    // user's own tasks first; the pool when they have none of their own.
+    setSubTab(
+      claimableSteps.includes(step) && (stepCounts[step] ?? 0) === 0 && (stepUnclaimedCounts[step] ?? 0) > 0
+        ? "unclaimed" : "mine",
+    );
     // Quick filters and search are scoped to the currently visible tab's data —
     // keeping e.g. category="DRUG" or a search term across a tab switch commonly
     // filters the new tab down to nothing, showing a misleading empty state.
@@ -795,7 +845,7 @@ export default function GMPTasksPage({ darkMode = false }) {
           flexWrap: "wrap", gap: 10, background: colors.cardBg, flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            {steps.length === 0 ? (
+            {tabSteps.length === 0 ? (
               <span style={{
                 display: "flex", alignItems: "center", gap: 8, padding: "7px 12px",
                 fontSize: "0.8rem", fontFamily: FONT, fontWeight: 600, color: colors.textPrimary,
@@ -805,9 +855,10 @@ export default function GMPTasksPage({ darkMode = false }) {
                   {loading ? "Loading your tasks…" : "No active step queues"}
                 </span>
               </span>
-            ) : steps.map((step) => {
+            ) : tabSteps.map((step) => {
               const isActive = activeTab === step;
               const count = stepCounts[step] ?? 0;
+              const unclaimedCount = stepUnclaimedCounts[step] ?? 0;
               const isCompliance = step === GMP_COMPLIANCE_TAB;
               const stepDef = GMP_STEPS.find((s) => s.id === step);
               const color = isCompliance ? "#a855f7" : (stepDef ? stepDef.color : ACCENT);
@@ -830,6 +881,14 @@ export default function GMPTasksPage({ darkMode = false }) {
                   }}>
                     {count}
                   </span>
+                  {unclaimedCount > 0 && (
+                    <span title={`${unclaimedCount} unclaimed task${unclaimedCount > 1 ? "s" : ""} you can claim`} style={{
+                      fontSize: "0.65rem", fontWeight: 700, padding: "2px 7px", borderRadius: 99,
+                      background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#f59e0b",
+                    }}>
+                      🕓 {unclaimedCount}
+                    </span>
+                  )}
                   {isCompliance && hasOverdueCompliance && (
                     <span title="Overdue compliance item(s)" style={{
                       width: 7, height: 7, borderRadius: "50%", background: "#ef4444", display: "inline-block",
@@ -841,10 +900,51 @@ export default function GMPTasksPage({ darkMode = false }) {
           </div>
         </div>
 
+        {/* My Tasks / Unclaimed — only on steps that have an Unclaimed pool
+            (OD Receiving, OD Releasing) the user can claim from. */}
+        {isClaimStep && (
+          <div style={{
+            padding: "7px 14px", background: colors.cardBg, display: "flex", gap: 6,
+            alignItems: "center", flexWrap: "wrap", borderTop: `1px solid ${colors.divider}`,
+          }}>
+            {[
+              { key: "mine",      label: "My Tasks",  count: stepCounts[activeTab] ?? 0,          accent: "#2196F3" },
+              { key: "unclaimed", label: "Unclaimed", count: stepUnclaimedCounts[activeTab] ?? 0, accent: "#f59e0b" },
+            ].map(({ key, label, count, accent }) => {
+              const on = subTab === key;
+              return (
+                <button key={key}
+                  onClick={() => { setSubTab(key); setSelectedRows([]); setCurrentPage(1); }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 12px",
+                    borderRadius: 99, fontSize: "0.72rem", fontWeight: 600, fontFamily: FONT, cursor: "pointer",
+                    border: `1px solid ${on ? accent : colors.cardBorder}`,
+                    background: on ? `${accent}26` : "transparent",
+                    color: on ? accent : colors.textTertiary,
+                  }}>
+                  {key === "unclaimed" ? "🕓" : "📝"} {label}
+                  <span style={{
+                    minWidth: 18, height: 18, padding: "0 6px", borderRadius: 99, display: "inline-flex",
+                    alignItems: "center", justifyContent: "center", fontSize: "0.62rem", fontWeight: 700,
+                    background: on ? accent : colors.badgeBg, color: on ? "#fff" : colors.textTertiary,
+                  }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            {isUnclaimedView && (
+              <span style={{ fontSize: "0.68rem", color: colors.textTertiary, marginLeft: 6 }}>
+                Tick the tasks you want, then press “Claim Selected”. You open a task after you claim it.
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Search / filter row — matches GMPQueuePage's search row. Stays put
             during a re-fetch (just dims), so the toolbar card doesn't lose a
             row mid-refresh. */}
-        {steps.length > 0 && data.length > 0 && (
+        {tabSteps.length > 0 && viewData.length > 0 && (
           <div style={{
             padding: "8px 14px",
             background: colors.cardBg, flexShrink: 0,
@@ -991,7 +1091,20 @@ export default function GMPTasksPage({ darkMode = false }) {
                   }}>
                   📄 Generate Transmittal
                 </button>
-                {GMP_BULK_ENDORSE_CONFIG[activeTab] && (
+                {isUnclaimedView && (
+                  <button
+                    onClick={() => setClaimTasks(sortedData.filter((r) => selectedRows.includes(r.id)))}
+                    style={{
+                      padding: "6px 14px", fontSize: "0.72rem", fontWeight: 700,
+                      fontFamily: FONT, borderRadius: 8, cursor: "pointer", border: "none",
+                      background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                      color: "#fff", display: "flex", alignItems: "center", gap: 6,
+                      boxShadow: "0 2px 8px rgba(245,158,11,0.35)",
+                    }}>
+                    🙋 Claim Selected ({selectedRows.length})
+                  </button>
+                )}
+                {!isUnclaimedView && GMP_BULK_ENDORSE_CONFIG[activeTab] && (
                   <button
                     onClick={() => setShowBulkEndorse(true)}
                     style={{
@@ -1039,7 +1152,7 @@ export default function GMPTasksPage({ darkMode = false }) {
         }}>
 
         {/* Record count row — stays put during a re-fetch (just dims). */}
-        {data.length > 0 && (
+        {viewData.length > 0 && (
           <div style={{
             padding: "8px 16px", borderBottom: `1px solid ${colors.divider}`,
             background: colors.cardBg, flexShrink: 0,
@@ -1179,11 +1292,13 @@ export default function GMPTasksPage({ darkMode = false }) {
             alignItems: "center", justifyContent: "center", gap: 10,
             color: colors.textTertiary, background: colors.cardBg,
           }}>
-            <span style={{ fontSize: "2.5rem" }}>{data.length === 0 ? "🎉" : "🔍"}</span>
+            <span style={{ fontSize: "2.5rem" }}>{viewData.length === 0 ? "🎉" : "🔍"}</span>
             <p style={{ fontSize: "0.84rem", fontWeight: 600, color: colors.textPrimary, margin: 0 }}>
-              {data.length === 0 ? "No tasks assigned yet" : "No tasks match your filters"}
+              {viewData.length === 0
+                ? (isUnclaimedView ? "No unclaimed tasks right now" : "No tasks assigned yet")
+                : "No tasks match your filters"}
             </p>
-            {data.length > 0 && (activeQuickChips.length > 0 || searchInput || filters.nearDeadline || filters.beyond || filters.starredOnly || filters.sentBy || originFilter !== "all") && (
+            {viewData.length > 0 && (activeQuickChips.length > 0 || searchInput || filters.nearDeadline || filters.beyond || filters.starredOnly || filters.sentBy || originFilter !== "all") && (
               <button
                 onClick={() => {
                   setActiveQuick(QUICK_DEFAULTS);
@@ -1206,32 +1321,34 @@ export default function GMPTasksPage({ darkMode = false }) {
         {/* Table — real rows, or skeleton rows on the first load (mirrors the
             GMP Queue). On a re-fetch (rows already on screen) the table stays
             put and just dims to 0.5, instead of flashing back to skeletons. */}
-        {(filteredData.length > 0 || (loading && data.length === 0)) && (
+        {(filteredData.length > 0 || (loading && viewData.length === 0)) && (
           <div style={{
             flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
             background: colors.cardBg,
-            opacity: loading && data.length > 0 ? 0.5 : 1,
+            opacity: loading && viewData.length > 0 ? 0.5 : 1,
             transition: "opacity 0.15s ease",
           }}>
             <TasksTable
-              rows={loading && data.length === 0 ? [] : paginatedData}
-              allIds={loading && data.length === 0 ? [] : sortedData.map((r) => r.id)}
-              loading={loading && data.length === 0}
+              rows={loading && viewData.length === 0 ? [] : paginatedData}
+              allIds={loading && viewData.length === 0 ? [] : sortedData.map((r) => r.id)}
+              loading={loading && viewData.length === 0}
               isComplianceView={activeTab === GMP_COMPLIANCE_TAB}
               selectedRows={selectedRows}
               onSelectRow={(id) => setSelectedRows((p) => p.includes(id) ? p.filter((r) => r !== id) : [...p, id])}
               onSelectAll={handleSelectAll}
               onOpenLog={(t) => setLogRecord({ id: t.gmp_record_id, dtn: t.dtn })}
               onOpenAudit={(t) => setAuditRecord({ id: t.gmp_record_id, dtn: t.dtn })}
-              onAdvanceStep={(t) => setWorkflowTask(t)}
+              // An unclaimed task can't be opened or starred: it isn't yours yet.
+              // Claim it first (Claim Selected). Logs / audit / documents stay available.
+              onAdvanceStep={(t) => { if (!isUnclaimedView) setWorkflowTask(t); }}
               onViewDoctrack={(t) => setDoctrackRecord({ dtn: t.dtn })}
               onOpenDocuments={(t) => setDocsRecord({ id: t.gmp_record_id, dtn: t.dtn, name_of_establishment: t.name_of_establishment })}
               currentPage={currentPage} rowsPerPage={rowsPerPage}
               colors={colors} darkMode={darkMode}
               readIds={readIds}
-              onMarkAsRead={(id) => setReadIds((p) => { const n = new Set(p); n.add(id); return n; })}
-              onToggleStar={handleToggleStar}
-              onDoubleClickRow={(row) => setWorkflowTask(row)}
+              onMarkAsRead={isUnclaimedView ? undefined : (id) => setReadIds((p) => { const n = new Set(p); n.add(id); return n; })}
+              onToggleStar={isUnclaimedView ? undefined : handleToggleStar}
+              onDoubleClickRow={(row) => { if (!isUnclaimedView) setWorkflowTask(row); }}
               visibleColumns={visibleColumns}
               sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
               isDefaultSort={sortBy === null}
@@ -1302,6 +1419,22 @@ export default function GMPTasksPage({ darkMode = false }) {
       {auditRecord && (
         <FieldAuditModal record={auditRecord} onClose={() => setAuditRecord(null)}
           colors={colors} darkMode={darkMode} />
+      )}
+      {claimTasks && (
+        <GMPClaimModal
+          tasks={claimTasks}
+          step={activeTab}
+          colors={colors}
+          onCancel={() => setClaimTasks(null)}
+          // Refresh only after the result is dismissed, so the popup is not
+          // unmounted underneath the user when the last unclaimed row leaves the list.
+          onDone={async () => {
+            setClaimTasks(null);
+            setSelectedRows([]);
+            await fetchAllSteps();
+            await fetchTasks();
+          }}
+        />
       )}
       {workflowTask && (
         <WorkflowModal
