@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { getDashboardDetail } from "../../api/dashboard";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import {
+  getDashboardDetail,
+  getDashboardEntryTypes,
+} from "../../api/dashboard";
 import { FB } from "./constants";
 import DoctrackModal from "../reports/actions/DoctrackModal.jsx";
 import { statusBadge, fmtDateTime, formatDateRange } from "./utils";
@@ -25,6 +28,174 @@ const fmtDateOnly = (value) => {
     year: "numeric",
   });
 };
+
+// Used only until the list from the database is loaded (or if loading fails)
+const FALLBACK_ENTRY_TYPES = [
+  "APPEAL",
+  "CANCELLATION OF CPR",
+  "CORRECTION",
+  "ORIGINAL",
+  "RECONSTRUCTION",
+  "VALIDITY EXTENSION",
+];
+
+// Multi-select dropdown with checkboxes
+function EntryTypeSelect({ value, onChange, options, ui, inputStyle }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, maxHeight: 320 });
+  const ref = useRef(null);
+  const btnRef = useRef(null);
+
+  // Position the menu relative to the viewport so the modal's
+  // overflow: hidden cannot clip it.
+  const toggleMenu = () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const spaceBelow = window.innerHeight - r.bottom - 12;
+      setPos({
+        top: r.bottom + 4,
+        left: r.left,
+        maxHeight: Math.max(160, Math.min(320, spaceBelow)),
+      });
+    }
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const dismiss = () => setOpen(false);
+    document.addEventListener("mousedown", close);
+    window.addEventListener("resize", dismiss);
+    window.addEventListener("scroll", dismiss, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("scroll", dismiss, true);
+    };
+  }, [open]);
+
+  const toggle = (t) =>
+    onChange(value.includes(t) ? value.filter((x) => x !== t) : [...value, t]);
+
+  const label =
+    value.length === 0
+      ? "All Types"
+      : value.length === 1
+        ? value[0]
+        : `${value.length} selected`;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        ref={btnRef}
+        onClick={toggleMenu}
+        style={{
+          ...inputStyle,
+          width: 170,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6,
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: "0.6rem", color: ui.textMuted }}>▼</span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            maxHeight: pos.maxHeight,
+            overflowY: "auto",
+            zIndex: 1200,
+            minWidth: 250,
+            background: ui.cardBg,
+            border: `1px solid ${ui.cardBorder}`,
+            borderRadius: 8,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+            padding: 6,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            style={{
+              background: "none",
+              border: "none",
+              color: FB,
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: "6px 8px",
+              fontFamily: "inherit",
+            }}
+          >
+            Clear selection
+          </button>
+          {options.map((t) => (
+            <label
+              key={t}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 8px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: "0.78rem",
+                color: ui.textPrimary,
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = ui.hoverBg)
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(t)}
+                onChange={() => toggle(t)}
+              />
+              {t}
+            </label>
+          ))}
+          <div
+            style={{
+              padding: "6px 8px 4px",
+              fontSize: "0.68rem",
+              color: ui.textMuted,
+              borderTop: `1px solid ${ui.divider}`,
+              marginTop: 4,
+            }}
+          >
+            ORIGINAL also includes records with no entry type.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MetricDetailModal({
   metricKey,
@@ -52,6 +223,25 @@ export default function MetricDetailModal({
     [doctrackDtn],
   );
 
+  const [entryTypeOptions, setEntryTypeOptions] =
+    useState(FALLBACK_ENTRY_TYPES);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDashboardEntryTypes()
+      .then((res) => {
+        if (!cancelled && res?.entry_types?.length) {
+          setEntryTypeOptions(res.entry_types);
+        }
+      })
+      .catch(() => {
+        // keep the fallback list
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const toggleDtnSort = () => {
     setDtnSort((prev) =>
       prev === null ? "asc" : prev === "asc" ? "desc" : null,
@@ -63,23 +253,37 @@ export default function MetricDetailModal({
   const [filterTo, setFilterTo] = useState("");
   const [filterStep, setFilterStep] = useState(initialStep);
   const [filterDtn, setFilterDtn] = useState("");
+  const [filterEntryTypes, setFilterEntryTypes] = useState([]);
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
   const [appliedStep, setAppliedStep] = useState(initialStep);
   const [appliedDtn, setAppliedDtn] = useState("");
+  const [appliedEntryTypes, setAppliedEntryTypes] = useState([]);
 
   const hasActiveDateFilter = appliedFrom || appliedTo;
   const hasActiveStepFilter = !!appliedStep;
   const hasActiveDtnFilter = !!appliedDtn;
+  const hasActiveEntryFilter = appliedEntryTypes.length > 0;
   const hasActiveFilter =
-    hasActiveDateFilter || hasActiveStepFilter || hasActiveDtnFilter;
+    hasActiveDateFilter ||
+    hasActiveStepFilter ||
+    hasActiveDtnFilter ||
+    hasActiveEntryFilter;
+  const hasPending = !!(
+    filterFrom ||
+    filterTo ||
+    filterStep ||
+    filterDtn ||
+    filterEntryTypes.length
+  );
 
   const applyFilter = () => {
     setAppliedFrom(filterFrom);
     setAppliedTo(filterTo);
     setAppliedStep(filterStep);
     setAppliedDtn(filterDtn);
-    fetchPage(1, filterFrom, filterTo, filterStep, filterDtn);
+    setAppliedEntryTypes(filterEntryTypes);
+    fetchPage(1, filterFrom, filterTo, filterStep, filterDtn, filterEntryTypes);
   };
 
   const clearFilter = () => {
@@ -91,11 +295,13 @@ export default function MetricDetailModal({
     setAppliedTo("");
     setAppliedStep("");
     setAppliedDtn("");
-    fetchPage(1, "", "", "", "");
+    setFilterEntryTypes([]);
+    setAppliedEntryTypes([]);
+    fetchPage(1, "", "", "", "", []);
   };
 
   const fetchPage = useCallback(
-    async (p, accFrom, accTo, step, dtn) => {
+    async (p, accFrom, accTo, step, dtn, entryTypes) => {
       setLoading(true);
       setError(null);
       try {
@@ -104,10 +310,13 @@ export default function MetricDetailModal({
         const resolvedTo = accTo !== undefined ? accTo : appliedTo;
         const resolvedStep = step !== undefined ? step : appliedStep;
         const resolvedDtn = dtn !== undefined ? dtn : appliedDtn;
+        const resolvedEntry =
+          entryTypes !== undefined ? entryTypes : appliedEntryTypes;
         if (resolvedFrom) extraParams.accomplished_date_from = resolvedFrom;
         if (resolvedTo) extraParams.accomplished_date_to = resolvedTo;
         if (resolvedStep) extraParams.app_step = resolvedStep;
         if (resolvedDtn) extraParams.dtn = resolvedDtn;
+        if (resolvedEntry.length) extraParams.entry_types = resolvedEntry;
         if (dtnSort) {
           extraParams.sort_by = "dtn";
           extraParams.sort_dir = dtnSort;
@@ -143,6 +352,7 @@ export default function MetricDetailModal({
       appliedTo,
       appliedStep,
       appliedDtn,
+      appliedEntryTypes,
       dtnSort,
     ],
   );
@@ -206,6 +416,7 @@ export default function MetricDetailModal({
     if (appliedTo) extraParams.accomplished_date_to = appliedTo;
     if (appliedStep) extraParams.app_step = appliedStep;
     if (appliedDtn) extraParams.dtn = appliedDtn;
+    if (appliedEntryTypes.length) extraParams.entry_types = appliedEntryTypes;
 
     const firstRes = await getDashboardDetail({
       metric: metricKey,
@@ -255,6 +466,7 @@ export default function MetricDetailModal({
     if (appliedTo) extraParams.accomplished_date_to = appliedTo;
     if (appliedStep) extraParams.app_step = appliedStep;
     if (appliedDtn) extraParams.dtn = appliedDtn;
+    if (appliedEntryTypes.length) extraParams.entry_types = appliedEntryTypes;
 
     const firstRes = await getDashboardDetail({
       metric: metricKey,
@@ -312,6 +524,8 @@ export default function MetricDetailModal({
         if (appliedTo) extraParams.accomplished_date_to = appliedTo;
         if (appliedStep) extraParams.app_step = appliedStep;
         if (appliedDtn) extraParams.dtn = appliedDtn;
+        if (appliedEntryTypes.length)
+          extraParams.entry_types = appliedEntryTypes;
 
         const firstRes = await getDashboardDetail({
           metric: metricKey,
@@ -406,7 +620,7 @@ export default function MetricDetailModal({
           border: `1px solid ${ui.cardBorder}`,
           borderRadius: 14,
           width: "100%",
-          maxWidth: 1100,
+          maxWidth: 1500,
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
@@ -660,31 +874,54 @@ export default function MetricDetailModal({
             </select>
           </div>
 
+          {/* Divider */}
+          <div
+            style={{
+              width: 1,
+              height: 22,
+              background: ui.divider,
+              flexShrink: 0,
+            }}
+          />
+
+          {/* Entry Type */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                color: ui.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              🏷️ Entry Type
+            </span>
+            <EntryTypeSelect
+              value={filterEntryTypes}
+              onChange={setFilterEntryTypes}
+              options={entryTypeOptions}
+              ui={ui}
+              inputStyle={inputStyle}
+            />
+          </div>
+
           {/* Apply */}
           <button
             onClick={applyFilter}
-            disabled={!filterFrom && !filterTo && !filterStep && !filterDtn}
+            disabled={!hasPending}
             style={{
               padding: "5px 14px",
               borderRadius: 7,
               border: "none",
-              background:
-                filterFrom || filterTo || filterStep || filterDtn
-                  ? FB
-                  : ui.progressBg,
-              color:
-                filterFrom || filterTo || filterStep || filterDtn
-                  ? "#fff"
-                  : ui.textMuted,
+              background: hasPending ? FB : ui.progressBg,
+              color: hasPending ? "#fff" : ui.textMuted,
               fontSize: "0.76rem",
               fontWeight: 700,
-              cursor:
-                filterFrom || filterTo || filterStep || filterDtn
-                  ? "pointer"
-                  : "not-allowed",
+              cursor: hasPending ? "pointer" : "not-allowed",
               fontFamily: "inherit",
-              opacity:
-                filterFrom || filterTo || filterStep || filterDtn ? 1 : 0.5,
+              opacity: hasPending ? 1 : 0.5,
               whiteSpace: "nowrap",
             }}
           >
@@ -757,6 +994,22 @@ export default function MetricDetailModal({
               }}
             >
               📌 {appliedStep}
+            </span>
+          )}
+
+          {hasActiveEntryFilter && (
+            <span
+              style={{
+                fontSize: "0.71rem",
+                color: "#0ea5e9",
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: "#0ea5e915",
+                whiteSpace: "nowrap",
+              }}
+            >
+              🏷️ {appliedEntryTypes.join(", ")}
             </span>
           )}
 
@@ -870,6 +1123,7 @@ export default function MetricDetailModal({
                       { label: "Company", align: "left" },
                       { label: "Brand Name", align: "left" },
                       { label: "Generic Name", align: "left" },
+                      { label: "Entry Type", align: "left" },
                       {
                         label: "Step",
                         align: "left",
@@ -1062,6 +1316,17 @@ export default function MetricDetailModal({
                           >
                             {row.generic_name || "—"}
                           </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            fontSize: "0.74rem",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {row.entry_type || "—"}
                         </td>
                         <td
                           style={{

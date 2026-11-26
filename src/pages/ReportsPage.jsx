@@ -50,6 +50,15 @@ function buildFilterParams(filters) {
   if (filters.nullDateReleased === "true") p.null_date_released = true;
   if (filters.nullDateReceivedCent === "true") p.null_date_received_cent = true;
 
+  if (filters.entryType) {
+    const tokens = filters.entryType.split(",").filter(Boolean);
+    // ORIGINAL also covers blank / "No Entry Type" records
+    if (tokens.some((t) => t.toUpperCase() === "ORIGINAL")) {
+      tokens.push("__EMPTY__");
+    }
+    p.entry_type = [...new Set(tokens)].join(",");
+  }
+
   return p;
 }
 

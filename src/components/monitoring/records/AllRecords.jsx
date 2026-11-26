@@ -1,6 +1,10 @@
 // src/components/monitoring/records/AllRecords.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getAllRecords, exportRecordsReport } from "../../../api/monitoring";
+import {
+  getAllRecords,
+  exportRecordsReport,
+  getEntryTypeOptions,
+} from "../../../api/monitoring";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
@@ -95,6 +99,7 @@ const PAGE_SIZE = 15;
 const EMPTY_FILTERS = {
   dtn: "",
   steps: [],
+  entryTypes: [],
   status: "",
   dateFrom: "",
   dateTo: "",
@@ -437,7 +442,16 @@ function dtnSideLabel(year, month, day) {
     .join(" · ");
 }
 
-function StepMultiSelect({ value, onChange, options, ui, inputSt, font }) {
+function StepMultiSelect({
+  value,
+  onChange,
+  options,
+  ui,
+  inputSt,
+  font,
+  allLabel = "All Steps",
+  countLabel = "steps",
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -455,10 +469,10 @@ function StepMultiSelect({ value, onChange, options, ui, inputSt, font }) {
 
   const label =
     value.length === 0
-      ? "All Steps"
+      ? allLabel
       : value.length === 1
         ? value[0]
-        : `${value.length} steps selected`;
+        : `${value.length} ${countLabel} selected`;
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -517,6 +531,18 @@ function StepMultiSelect({ value, onChange, options, ui, inputSt, font }) {
           >
             Clear selection
           </button>
+          {options.length === 0 && (
+            <div
+              style={{
+                padding: "8px 10px",
+                fontSize: "0.66rem",
+                color: ui.textMuted,
+                fontFamily: font,
+              }}
+            >
+              No options available
+            </div>
+          )}
           {options.map((s) => (
             <label
               key={s}
@@ -566,7 +592,14 @@ export default function AllRecords({
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const requestIdRef = useRef(0);
+
+  // Load data only after an explicit Search, or when a user is selected
+  // from the "Tasks per User" panel.
+  const shouldLoad = hasSearched || !!filterUserId;
   const [error, setError] = useState(null);
 
   const [dateFrom, setDateFrom] = useState("");
@@ -576,6 +609,24 @@ export default function AllRecords({
 
   const [dtnInput, setDtnInput] = useState("");
   const [stepFilters, setStepFilters] = useState([]);
+  const [entryTypeFilters, setEntryTypeFilters] = useState([]);
+  const [entryTypeOptions, setEntryTypeOptions] = useState([]);
+
+  // Entry type options come from the database
+  useEffect(() => {
+    let cancelled = false;
+    getEntryTypeOptions()
+      .then((opts) => {
+        if (!cancelled) setEntryTypeOptions(opts);
+      })
+      .catch((err) => {
+        console.error("Failed to load entry type options:", err);
+        if (!cancelled) setEntryTypeOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [applied, setApplied] = useState(EMPTY_FILTERS);
   const [localStatusFilter, setLocalStatusFilter] = useState("");
   const [latestOnly, setLatestOnly] = useState(false);
@@ -605,6 +656,7 @@ export default function AllRecords({
   const draftFilters = {
     dtn: dtnInput.trim(),
     steps: stepFilters,
+    entryTypes: entryTypeFilters,
     status: localStatusFilter,
     dateFrom,
     dateTo,
@@ -617,6 +669,8 @@ export default function AllRecords({
 
   const handleApply = () => {
     setApplied(draftFilters);
+    setHasSearched(true);
+    setRefreshKey((k) => k + 1); // allows re-running the same search
     setPage(1);
   };
   const handleAction = async (actionKey, row) => {
@@ -692,6 +746,10 @@ export default function AllRecords({
   });
 
   const fetchRecords = useCallback(async () => {
+    if (!shouldLoad) return;
+
+    // Only the latest request is allowed to update the state
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -706,25 +764,42 @@ export default function AllRecords({
       if (applied.dateTo) params.date_to = applied.dateTo;
       if (applied.dtn) params.dtn = applied.dtn;
       if (applied.steps.length) params.app_step = applied.steps.join(",");
+      if (applied.entryTypes.length)
+        params.entry_type = applied.entryTypes.join(",");
       if (applied.status) params.application_status = applied.status;
       if (applied.dtnDateFrom) params.dtn_date_from = applied.dtnDateFrom;
       if (applied.dtnDateTo) params.dtn_date_to = applied.dtnDateTo;
       if (applied.latestOnly) params.latest_only = true;
       if (applied.firstOnly) params.first_only = true;
+
       const data = await getAllRecords(params);
+      if (requestId !== requestIdRef.current) return; // stale response
       setRecords(data.data || []);
       setTotal(data.total || 0);
       setTotalPages(data.total_pages || 1);
     } catch (err) {
-      setError(err.message);
+      if (requestId === requestIdRef.current) setError(err.message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [page, sortCol, sortDir, filterUserId, applied]);
+  }, [shouldLoad, page, sortCol, sortDir, filterUserId, applied, refreshKey]);
 
   useEffect(() => {
-    fetchRecords();
-  }, [fetchRecords]);
+    if (!shouldLoad) {
+      // Nothing to show until the user searches or picks a user
+      requestIdRef.current += 1;
+      setRecords([]);
+      setTotal(0);
+      setTotalPages(1);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    // Short debounce merges the several state updates that happen together
+    // when a user count is clicked (user, status, page reset)
+    const timer = setTimeout(fetchRecords, 80);
+    return () => clearTimeout(timer);
+  }, [fetchRecords, shouldLoad]);
 
   useEffect(() => {
     setPage(1);
@@ -746,7 +821,8 @@ export default function AllRecords({
           ? "IN PROGRESS"
           : "";
     setLocalStatusFilter(s);
-    // iwas double-fetch sa unang load kung pareho naman ang status
+    // Skip the state update when the status is already the same,
+    // so we do not trigger a duplicate fetch.
     setApplied((a) => (a.status === s ? a : { ...a, status: s }));
     setPage(1);
   }, [statusFilter, filterUserId]);
@@ -767,8 +843,10 @@ export default function AllRecords({
     );
   };
 
+  const reportDisabled = !shouldLoad || total === 0 || loading || reportLoading;
+
   const handleGenerateReport = async () => {
-    if (total === 0 || loading || reportLoading) return;
+    if (reportDisabled) return;
 
     setReportLoading(true);
     try {
@@ -808,6 +886,7 @@ export default function AllRecords({
     setDateTo("");
     setDtnInput("");
     setStepFilters([]);
+    setEntryTypeFilters([]);
     setLocalStatusFilter("");
     setSortCol("date");
     setSortDir("desc");
@@ -819,6 +898,7 @@ export default function AllRecords({
     setDtnToMonth("");
     setDtnToDay("");
     setApplied(EMPTY_FILTERS);
+    setHasSearched(false);
   };
 
   const handleFromYearChange = (val) => {
@@ -937,6 +1017,21 @@ export default function AllRecords({
                 ui={ui}
                 inputSt={inputSt}
                 font={font}
+              />
+            </div>
+
+            {/* Entry Type */}
+            <div>
+              <label style={labelSt}>Entry Type</label>
+              <StepMultiSelect
+                value={entryTypeFilters}
+                onChange={setEntryTypeFilters}
+                options={entryTypeOptions}
+                ui={ui}
+                inputSt={inputSt}
+                font={font}
+                allLabel="All Entry Types"
+                countLabel="types"
               />
             </div>
 
@@ -1165,33 +1260,26 @@ export default function AllRecords({
 
             <button
               onClick={handleGenerateReport}
-              disabled={total === 0 || loading || reportLoading}
+              disabled={reportDisabled}
               style={{
                 padding: "5px 12px",
                 fontSize: "0.66rem",
                 fontWeight: 600,
                 borderRadius: 6,
-                border: `1px solid ${total === 0 || loading || reportLoading ? ui.cardBorder : FB}`,
-                background:
-                  total === 0 || loading || reportLoading ? ui.progressBg : FB,
-                color:
-                  total === 0 || loading || reportLoading
-                    ? ui.textMuted
-                    : "#fff",
-                cursor:
-                  total === 0 || loading || reportLoading
-                    ? "not-allowed"
-                    : "pointer",
+                border: `1px solid ${reportDisabled ? ui.cardBorder : FB}`,
+                background: reportDisabled ? ui.progressBg : FB,
+                color: reportDisabled ? ui.textMuted : "#fff",
+                cursor: reportDisabled ? "not-allowed" : "pointer",
                 fontFamily: font,
                 alignSelf: "flex-end",
                 display: "flex",
                 alignItems: "center",
                 gap: 5,
-                opacity: total === 0 || loading || reportLoading ? 0.6 : 1,
+                opacity: reportDisabled ? 0.6 : 1,
                 transition: "all 0.15s",
                 whiteSpace: "nowrap",
               }}
-              title={`Export all ${total.toLocaleString()} filtered records as CSV`}
+              title={`Export all ${total.toLocaleString()} filtered records as Excel`}
             >
               {reportLoading
                 ? `⏳ Generating…`
@@ -1405,7 +1493,24 @@ export default function AllRecords({
             style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
             className="monitoring-scroll"
           >
-            {loading ? (
+            {!shouldLoad ? (
+              <div
+                style={{
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: ui.textMuted,
+                  fontSize: "0.78rem",
+                  fontFamily: font,
+                  lineHeight: 1.6,
+                }}
+              >
+                <div style={{ fontSize: "1.6rem", marginBottom: 6 }}>🔍</div>
+                Set your filters and click <strong>Search</strong> to load
+                records,
+                <br />
+                or pick a user from the "Tasks per User" panel.
+              </div>
+            ) : loading ? (
               <>
                 {Array.from({ length: 10 }).map((_, i) => (
                   <div

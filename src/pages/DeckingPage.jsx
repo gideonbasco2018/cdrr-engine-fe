@@ -31,7 +31,14 @@ function buildFilterParams(filters) {
   if (filters.brandName) p.brand_name = filters.brandName;
   if (filters.genericName) p.generic_name = filters.genericName;
   if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
-  if (filters.entryType) p.entry_type = filters.entryType;
+  if (filters.entryType) {
+    const tokens = filters.entryType.split(",").filter(Boolean);
+    // ORIGINAL also covers blank / "No Entry Type" records
+    if (tokens.some((t) => t.toUpperCase() === "ORIGINAL")) {
+      tokens.push("__EMPTY__");
+    }
+    p.entry_type = [...new Set(tokens)].join(",");
+  }
   if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
   if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
   if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
