@@ -9,6 +9,7 @@ import QueueTable, { COLUMNS as GMP_QUEUE_COLUMNS } from "../components/gmp/queu
 import { parseDtnSearch, handleMultilinePaste, DtnSearchSummary } from "../components/gmp/shared/dtnSearch";
 import DeckModal from "../components/gmp/queue/GMPDeckModal";
 import BulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
+import GMPCloseTaskModal from "../components/gmp/queue/GMPCloseTaskModal";
 import UploadModal from "../components/gmp/queue/UploadModal";
 import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
@@ -715,6 +716,7 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [showUpload,   setShowUpload]   = useState(false);
   const [deckRecord,   setDeckRecord]   = useState(null);   // single deck
   const [bulkDeckRows, setBulkDeckRows] = useState(null);   // bulk deck
+  const [closeRows,    setCloseRows]    = useState(null);   // Close Task (Final)
   const [reassignRecord, setReassignRecord] = useState(null);
   const [rerouteRecord,  setRerouteRecord]  = useState(null);
   const [infoRecord, setInfoRecord] = useState(null);
@@ -1411,7 +1413,7 @@ export default function GMPQueuePage({ darkMode = false }) {
             </div>
             )}
 
-            {selected.length > 0 && topTab === "all" && (
+            {selected.length > 0 && (topTab === "all" || topTab === "decked") && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{
                 fontSize: "0.78rem", fontWeight: 700, color: ACCENT,
@@ -1422,6 +1424,7 @@ export default function GMPQueuePage({ darkMode = false }) {
               }}>
                 ✔ {selected.length} selected
               </span>
+              {topTab === "all" && (
               <button
                 onClick={() => setShowTransmittalChoice(true)}
                 style={{
@@ -1442,6 +1445,30 @@ export default function GMPQueuePage({ darkMode = false }) {
                   e.currentTarget.style.boxShadow = "0 3px 10px rgba(25,118,210,0.4)";
                 }}>
                 📄 Generate Transmittal
+              </button>
+              )}
+              {/* Close Task (Final) — permanently closes every reference of the
+                  selected DTNs (FGMP's version of CPR's red button). */}
+              <button
+                onClick={() => setCloseRows(rows.filter((r) => selected.includes(r.id)))}
+                style={{
+                  padding: "8px 18px", fontSize: "0.8rem", fontWeight: 700,
+                  fontFamily: FONT, borderRadius: 10, cursor: "pointer",
+                  border: "1px solid #991b1b",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  color: "#fff", display: "flex", alignItems: "center", gap: 7,
+                  boxShadow: "0 3px 10px rgba(220,38,38,0.4)",
+                  transition: "transform 0.12s, box-shadow 0.12s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 5px 14px rgba(220,38,38,0.55)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(220,38,38,0.4)";
+                }}>
+                🔒 Close Task (Final)
               </button>
             </div>
             )}
@@ -1509,6 +1536,16 @@ export default function GMPQueuePage({ darkMode = false }) {
           onClose={() => setBulkDeckRows(null)}
           onSuccess={async () => { setBulkDeckRows(null); setSelected([]); await Promise.all([fetchRecords(), loadFilterCounts()]); }}
           colors={colors} darkMode={darkMode}
+        />
+      )}
+      {closeRows && (
+        <GMPCloseTaskModal
+          records={closeRows}
+          onClose={() => setCloseRows(null)}
+          // Reload only when the result is dismissed, so the popup is not
+          // unmounted underneath the user when the rows leave the list.
+          onDone={async () => { setCloseRows(null); setSelected([]); await Promise.all([fetchRecords(), loadFilterCounts()]); }}
+          colors={colors}
         />
       )}
       {showUpload && (
