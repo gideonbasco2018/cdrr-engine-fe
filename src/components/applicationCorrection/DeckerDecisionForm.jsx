@@ -9,6 +9,7 @@ const DECISION_CONFIG = {
   "For LRD Decking": { groupId: 2, label: "Decker" },
   "For OD Review": { groupId: 22, label: "OD Review Staff" },
   "For PRSDD Quality Evaluation": { groupId: 23, label: "PRSDD Evaluator" },
+  "For PRSDD Decking": { groupId: 24, label: "PRSDD Decker" },
   "For LRD Chief Admin": { groupId: 17, label: "LRD Chief Admin" },
   "For OD-Releasing": { groupId: 19, label: "OD Releasing Staff" },
 };
@@ -34,7 +35,7 @@ export function DeckerDecisionForm({
     getUsersByGroup(config.groupId)
       .then((users) => {
         setAssigneeUsers(users);
-        // ── Auto-assign pagkatapos ma-load ang users ──
+        // Auto-assign after the users are loaded
         if (users.length > 0) {
           const randomUser = users[Math.floor(Math.random() * users.length)];
           onDeckerChange({
@@ -61,16 +62,12 @@ export function DeckerDecisionForm({
 
   const handleDecisionChange = (decision) => {
     const autoRemark = DOCTRACK_DEFAULTS[decision] || "";
-    // ── Auto-assign agad kapag may decision at may users na loaded ──
-    const randomUser =
-      assigneeUsers.length > 0
-        ? assigneeUsers[Math.floor(Math.random() * assigneeUsers.length)]
-        : null;
+    // Clear the assignee; it is auto-assigned after the new group is loaded
     onDeckerChange({
       ...deckerData,
       decision,
-      assignee: randomUser?.username ?? "",
-      assigneeId: randomUser?.id ?? null,
+      assignee: "",
+      assigneeId: null,
       autoAssign: true,
       doctrackRemarks: deckerData.doctrackAutoFill
         ? autoRemark
@@ -360,7 +357,7 @@ export function DeckerDecisionForm({
             </div>
           </div>
 
-          {/* Assignee — lumalabas lang kapag may decision */}
+          {/* Assignee: shown only when a decision is selected */}
 
           {config && (
             <div>
