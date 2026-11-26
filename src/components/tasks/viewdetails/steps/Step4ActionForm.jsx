@@ -521,7 +521,7 @@ export function Step4ActionForm({
 
   /* ── Build doctrack string for OD-Releasing ── */
   const buildODReleasingDoctrack = (dateStr) =>
-    `Signed (${formatSignedDate(dateStr)}) by CDRR-OIC Director, for scanning`;
+    `Signed (${formatSignedDate(dateStr)}) by CDRR Director, for scanning`;
 
   /* ── Init current user ── */
   useEffect(() => {
