@@ -28,6 +28,9 @@ const CHECKER_RETURN_FOR_REVIEW_ACTION =
 //                    whoever last held `assigneeLabel`'s step (same rule as the
 //                    single-task screen), or the user can pick one person.
 // multi: true     -> several people can be picked (Signature Facilitator step).
+// unclaimedNext: true -> the next step is an Unclaimed pool (OD Receiving / OD
+//                    Releasing, as in CPR): nobody is picked, each application
+//                    waits in that step's Unclaimed tab for the group to claim.
 export const GMP_BULK_ENDORSE_CONFIG = {
   "Checker": {
     currentStep: "Checker",
@@ -91,6 +94,7 @@ export const GMP_BULK_ENDORSE_CONFIG = {
         nextStep: "OD Receiving",
         assigneeGroupId: 18,
         assigneeLabel: "OD Receiving",
+        unclaimedNext: true,
         authorityGroupId: 6,
         authorityLabel: "Decision Authority (Signer)",
         authorityNote: "For record-keeping in the Application Logs / Doctrack only — it does not change routing.",
@@ -122,7 +126,7 @@ export const GMP_BULK_ENDORSE_CONFIG = {
         assigneeLabel: "CDRR-OD Signature Facilitator",
         multi: true,
         decisionValue: "For Signature",
-        doctrackDefault: "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
+        doctrackDefault: "Received by CDRR - OD; Forwarded to CDRR Director for Signature",
       },
       {
         action: "Return to LRD Chief Admin",
@@ -155,6 +159,7 @@ export const GMP_BULK_ENDORSE_CONFIG = {
         nextStep: "OD Releasing",
         assigneeGroupId: 19,
         assigneeLabel: "OD Releasing",
+        unclaimedNext: true,
         doctrackDefault: "Signed by CDRR Director, forwarded to OD-Releasing",
       },
       {
@@ -258,7 +263,7 @@ function fmtSignedDate(iso) {
 }
 function buildOdReleasingDoctrack(iso) {
   const d = fmtSignedDate(iso);
-  return `Signed${d ? ` (${d})` : ""} by CDRR-OIC Director; Scanned, Stamped and Forwarded to AFO Records`;
+  return `Signed${d ? ` (${d})` : ""} by CDRR Director; Scanned, Stamped and Forwarded to AFO Records`;
 }
 function displayName(u) {
   return `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.trim();
@@ -351,7 +356,9 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
 
   const currentUser = useMemo(() => { try { return getUser() || {}; } catch { return {}; } }, []);
 
-  const needsAssignee = !eff.isEndTask && !!eff.assigneeGroupId;
+  // No person is picked when the next step is an Unclaimed pool.
+  const isUnclaimedNext = !!eff.unclaimedNext;
+  const needsAssignee = !eff.isEndTask && !!eff.assigneeGroupId && !isUnclaimedNext;
   const isMulti = needsAssignee && !!eff.multi;
   const isSendBack = needsAssignee && !!eff.sendBack;
   const autoReturn = isSendBack && returnMode === "previous";
@@ -547,7 +554,9 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
             dtn: rec.dtn,
             to: eff.isEndTask ? "Released"
               : isMulti ? assigneeIds.map(nameOf).join(", ")
-              : nextAssigneeId != null ? nameOf(nextAssigneeId) : (eff.nextStep ?? ""),
+              : nextAssigneeId != null ? nameOf(nextAssigneeId)
+              : isUnclaimedNext ? `${eff.nextStep} — Unclaimed tab`
+              : (eff.nextStep ?? ""),
           });
         } catch (e) {
           console.error(`Bulk endorse failed for DTN ${rec.dtn}:`, e);
@@ -804,6 +813,17 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
           />
         </div>
 
+        {/* Next step is an Unclaimed pool: nobody to pick (same notice as CPR). */}
+        {isUnclaimedNext && act && (
+          <div style={{
+            padding: "0.7rem 0.9rem", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.40)",
+            borderRadius: 8, fontSize: "0.78rem", color: colors.textPrimary, lineHeight: 1.55,
+          }}>
+            🕓 No one is picked. Each selected application goes to the <strong>{eff.nextStep}</strong>{" "}
+            <strong>Unclaimed</strong> tab, and any {eff.nextStep} group member can claim it.
+          </div>
+        )}
+
         {/* Assignee */}
         {needsAssignee && (needsPick || isMulti) && (
           <div>
@@ -932,6 +952,8 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
             <><strong style={{ color: "#059669" }}>✅ Note:</strong> This will mark the <strong>{config.currentStep}</strong> log as <strong>Completed</strong> for each selected record. This action cannot be undone.</>
           ) : isSendBack ? (
             <><strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will complete the current <strong>{config.currentStep}</strong> log and return each record to its <strong>{autoReturn ? `previous ${eff.assigneeLabel}` : eff.assigneeLabel}</strong>. This action cannot be undone.</>
+          ) : isUnclaimedNext ? (
+            <><strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will complete the current <strong>{config.currentStep}</strong> log for each selected record and place an unassigned <strong>{eff.nextStep}</strong> task in its <strong>Unclaimed</strong> tab for the group to claim. This action cannot be undone.</>
           ) : (
             <><strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will complete the current <strong>{config.currentStep}</strong> log for each selected record and create a new <strong>{act ? eff.nextStep : "next-step"}</strong> log assigned to the selected {isMulti ? "users" : "user"}. This action cannot be undone.</>
           )}
