@@ -20,6 +20,23 @@ import {
   makeStagedDoc,
 } from "./docHelpers";
 
+const NEXT_STEP_BY_DECISION = {
+  "For Quality Evaluation": "Quality Evaluation",
+  "For OD Review": "OD Review",
+  "For PRSDD Quality Evaluation": "PRSDD Quality Evaluation",
+  "For PRSDD Decking": "PRSDD Decking",
+  "For LRD Chief Admin": "LRD Chief Admin",
+  "For OD-Releasing": "OD-Releasing",
+};
+
+// Returns the local date in YYYY-MM-DD format, as required by date inputs
+const getTodayDate = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+};
+
 export function CorrectionPage({
   record,
   onBack,
@@ -397,18 +414,8 @@ export function CorrectionPage({
 
                     // Log 2 — Assignee IN PROGRESS
                     const nextStep =
-                      deckerData.decision === "For Quality Evaluation"
-                        ? "Quality Evaluation"
-                        : deckerData.decision === "For OD Review"
-                          ? "OD Review"
-                          : deckerData.decision ===
-                              "For PRSDD Quality Evaluation"
-                            ? "PRSDD Quality Evaluation"
-                            : deckerData.decision === "For LRD Chief Admin"
-                              ? "LRD Chief Admin"
-                              : deckerData.decision === "For OD-Releasing"
-                                ? "OD-Releasing"
-                                : "LRD Decking";
+                      NEXT_STEP_BY_DECISION[deckerData.decision] ??
+                      "LRD Decking";
                     await createApplicationLog({
                       main_db_id: result.main_db_id,
                       application_step: nextStep,
@@ -855,7 +862,7 @@ export function CorrectionPage({
 
       <ConfirmDateModal
         open={showDateConfirm}
-        value={dateReceivedCent}
+        value={editedFields.dateReceivedCent ?? getTodayDate()}
         onConfirm={handleDateConfirm}
         onCancel={() => setShowDateConfirm(false)}
         darkMode={darkMode}
