@@ -256,7 +256,16 @@ export const exportRecordsReport = async (params) => {
   return response.data;
 };
 
-
+export const getEntryTypeOptions = async () => {
+  try {
+    const response = await API.get("/monitoring/all-records/entry-types");
+    return response.data.entry_types || [];
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail || "Failed to fetch entry types",
+    );
+  }
+};
 
 /**
  * In-progress task count per active user, with unit and application type

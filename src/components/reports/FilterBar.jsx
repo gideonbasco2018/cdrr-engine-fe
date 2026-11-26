@@ -392,6 +392,203 @@ export function CountryDropdown({
   );
 }
 
+// ── Entry Type multi-select (checkbox) ───────────────────────────────────────
+// value is a comma-separated string, e.g. "ORIGINAL,APPEAL"
+function EntryTypeMultiSelect({
+  value,
+  onChange,
+  options = [],
+  loading,
+  colors,
+  accentColor,
+  isActive,
+}) {
+  const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const ref = useRef(null);
+  const panelRef = useRef(null);
+
+  const selected = value ? value.split(",").filter(Boolean) : [];
+
+  // "No Entry Type" is merged into ORIGINAL, so hide blank options
+  // and make sure ORIGINAL is always available if blanks exist.
+  const hasBlank = options.some((o) => !o.value);
+  const named = options.filter((o) => o.value).map((o) => o.value);
+  const hasOriginal = named.some((v) => v.toUpperCase() === "ORIGINAL");
+  const list = hasBlank && !hasOriginal ? ["ORIGINAL", ...named] : named;
+
+  const updateCoords = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setCoords({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+  };
+
+  useEffect(() => {
+    if (open) updateCoords();
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target) &&
+        panelRef.current &&
+        !panelRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => updateCoords();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open]);
+
+  const toggle = (v) => {
+    const next = selected.includes(v)
+      ? selected.filter((x) => x !== v)
+      : [...selected, v];
+    onChange(next.join(","));
+  };
+
+  const label = loading
+    ? "Loading…"
+    : selected.length === 0
+      ? "All Entry Types"
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} selected`;
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+      <button
+        type="button"
+        disabled={loading}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...inputStyle(colors, {
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.6 : 1,
+            borderColor: open || isActive ? accentColor : colors.inputBorder,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            textAlign: "left",
+            gap: "0.4rem",
+          }),
+          appearance: "none",
+          WebkitAppearance: "none",
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+            color: selected.length ? colors.textPrimary : colors.textTertiary,
+          }}
+        >
+          {label}
+        </span>
+        <span
+          style={{
+            fontSize: "0.55rem",
+            color: colors.textTertiary,
+            flexShrink: 0,
+            transition: "transform 0.2s",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{
+              position: "fixed",
+              top: coords.top,
+              left: coords.left,
+              width: Math.max(coords.width, 190),
+              background: colors.cardBg,
+              border: `1px solid ${accentColor}`,
+              borderRadius: "8px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+              zIndex: 99999,
+              overflow: "hidden",
+            }}
+          >
+            {selected.length > 0 && (
+              <div
+                onClick={() => onChange("")}
+                style={{
+                  padding: "0.4rem 0.65rem",
+                  fontSize: "0.68rem",
+                  color: accentColor,
+                  cursor: "pointer",
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                Clear selection
+              </div>
+            )}
+
+            <div style={{ maxHeight: "40vh", overflowY: "auto" }}>
+              {list.map((v) => {
+                const checked = selected.includes(v);
+                return (
+                  <label
+                    key={v}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.4rem 0.65rem",
+                      fontSize: "0.72rem",
+                      cursor: "pointer",
+                      color: colors.textPrimary,
+                      fontWeight: checked ? "600" : "400",
+                      background: checked ? `${accentColor}18` : "transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!checked)
+                        e.currentTarget.style.background = colors.inputBg;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!checked)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(v)}
+                      style={{ accentColor, cursor: "pointer", margin: 0 }}
+                    />
+                    <span>{v}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 // ── Date Range with "No Date" toggle ────────────────────────────────────────
 function DateRangeWithNull({
   labelFrom,
@@ -627,27 +824,16 @@ function FilterField({
           ))}
         </select>
       )}
-
       {field.type === "entryTypeSelect" && (
-        <select
+        <EntryTypeMultiSelect
           value={value || ""}
-          onChange={(e) => onChange(field.key, e.target.value)}
-          disabled={loadingEntryTypes}
-          style={inputStyle(colors, {
-            cursor: loadingEntryTypes ? "not-allowed" : "pointer",
-            opacity: loadingEntryTypes ? 0.6 : 1,
-            ...(isActive ? activeBorder : {}),
-          })}
-        >
-          <option value="">
-            {loadingEntryTypes ? "Loading…" : "All Entry Types"}
-          </option>
-          {entryTypes.map((et) => (
-            <option key={et.value || "empty"} value={et.value || ""}>
-              {et.value || "No Entry Type"}
-            </option>
-          ))}
-        </select>
+          onChange={(val) => onChange(field.key, val)}
+          options={entryTypes}
+          loading={loadingEntryTypes}
+          colors={colors}
+          accentColor={accentColor}
+          isActive={isActive}
+        />
       )}
 
       {field.type === "country" && (
@@ -841,8 +1027,6 @@ function FilterBar({
   // If multi-DTN mode: pass { dtns: "123,456,789", search: "" }
   // If single/normal: pass { dtns: "", search: localSearch }
   const handleSearch = () => {
-    console.log("🔍 DEBUG localFilters:", localFilters);
-    console.log("🔍 DEBUG entryType value:", localFilters.entryType);
     if (isMultiDTNMode) {
       // Send dtns as comma-separated, clear search
       onSearchChange(""); // clear the generic search

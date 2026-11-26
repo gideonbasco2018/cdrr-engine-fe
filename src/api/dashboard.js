@@ -38,7 +38,16 @@ export async function getDashboardRecentApplications(params = {}) {
 }
 
 export async function getDashboardDetail(params = {}) {
-  const { data } = await axios.get("/dashboard/stats/detail", { params });
+  const { data } = await axios.get("/dashboard/stats/detail", {
+    params,
+    // Repeat the key per value (entry_types=a&entry_types=b) for FastAPI List[str]
+    paramsSerializer: { indexes: null },
+  });
+  return data;
+}
+
+export async function getDashboardEntryTypes() {
+  const { data } = await axios.get("/dashboard/stats/entry-types");
   return data;
 }
 
