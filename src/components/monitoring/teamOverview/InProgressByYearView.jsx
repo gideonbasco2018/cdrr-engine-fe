@@ -1405,6 +1405,134 @@ function UnitChartCell({
     </td>
   );
 }
+
+// Export format picker (PDF or Excel)
+function ExportChoiceModal({ colors, busy, onPdf, onExcel, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && !busy && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, busy]);
+
+  const option = (icon, title, desc, onClick) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      style={{
+        flex: 1,
+        textAlign: "left",
+        padding: "0.9rem 1rem",
+        borderRadius: 10,
+        border: `1px solid ${colors.cardBorder}`,
+        background: colors.pageBg,
+        color: colors.textPrimary,
+        cursor: busy ? "default" : "pointer",
+        opacity: busy ? 0.6 : 1,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = colors.accent)}
+      onMouseLeave={(e) =>
+        (e.currentTarget.style.borderColor = colors.cardBorder)
+      }
+    >
+      <div style={{ fontSize: "1.4rem", marginBottom: 4 }}>{icon}</div>
+      <div style={{ fontSize: "0.86rem", fontWeight: 700 }}>{title}</div>
+      <div
+        style={{ fontSize: "0.7rem", color: colors.textTertiary, marginTop: 2 }}
+      >
+        {desc}
+      </div>
+    </button>
+  );
+
+  return (
+    <div
+      onClick={() => !busy && onClose()}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 12,
+          width: 440,
+          maxWidth: "94vw",
+          padding: "1.1rem 1.2rem",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.92rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            Export table
+          </span>
+          <button
+            onClick={onClose}
+            disabled={busy}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textTertiary,
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        <div
+          style={{
+            fontSize: "0.72rem",
+            color: colors.textTertiary,
+            marginBottom: 12,
+          }}
+        >
+          Piliin ang format. Kasama ang kasalukuyang mga filter.
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          {option("📄", "PDF", "Pang-print o ipadala", onPdf)}
+          {option("📊", "Excel", "Pwedeng i-edit o i-compute", onExcel)}
+        </div>
+        {busy && (
+          <div
+            style={{
+              fontSize: "0.72rem",
+              color: colors.textSecondary,
+              marginTop: 10,
+              textAlign: "center",
+            }}
+          >
+            Exporting…
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 // ══════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════
@@ -1444,6 +1572,7 @@ export default function InProgressByYearView({ darkMode }) {
   }, [ready]);
   const [includeSupervisors, setIncludeSupervisors] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [drill, setDrill] = useState(null);
 
   // ── Reused modals: DTN → Doctrack, Actions → Details / Application Logs ──
@@ -1789,6 +1918,144 @@ export default function InProgressByYearView({ darkMode }) {
     }
   };
 
+  // ── Excel export of the matrix (same layout as the table) ──
+  const exportMatrixExcel = async () => {
+    if (!matrix) return;
+    setExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const filterText = [
+        appTypeFilter.length ? `App type: ${appTypeFilter.join(", ")}` : null,
+        entryTypeFilter.length
+          ? `Entry type: ${entryTypeFilter.join(", ")}`
+          : null,
+        stepSel.length ? `Step: ${stepSel.join(", ")}` : null,
+        !includeSupervisors ? "Supervisors: excluded" : null,
+      ]
+        .filter(Boolean)
+        .join("  |  ");
+
+      const aoa = [
+        ["In Progress - Received by Center"],
+        [
+          `Generated ${new Date().toLocaleString()}  |  Total in progress: ${visibleTotal}`,
+        ],
+        ...(filterText ? [[filterText]] : []),
+        [],
+        [
+          "Unit",
+          "Member",
+          ...years,
+          ...(hasNoDate ? ["No date"] : []),
+          "Total",
+        ],
+      ];
+      const merges = [];
+      const cells = (m) => [
+        ...years.map((y) => m.counts[y] || ""),
+        ...(hasNoDate ? [m.no_date || ""] : []),
+        m.total || "",
+      ];
+
+      visibleUnits.forEach((u) => {
+        const {
+          rows: unitRows,
+          supervisors,
+          statisticians,
+        } = splitUnitMembers(u);
+        const extras = [...supervisors, ...statisticians];
+        const label = [
+          u.unit_name,
+          supervisors.length
+            ? `Supervisor: ${supervisors.map((s) => s.member_name).join(", ")}`
+            : null,
+          statisticians.length
+            ? `Statistician: ${statisticians.map((s) => s.member_name).join(", ")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+
+        const start = aoa.length;
+        unitRows.forEach((m, idx) =>
+          aoa.push([idx === 0 ? label : "", m.member_name, ...cells(m)]),
+        );
+        if (extras.length) {
+          const sum = (fn) => unitRows.reduce((s, m) => s + fn(m), 0);
+          aoa.push([
+            "",
+            "Total",
+            ...years.map((y) => sum((m) => m.counts[y] || 0) || ""),
+            ...(hasNoDate ? [sum((m) => m.no_date || 0) || ""] : []),
+            sum((m) => m.total || 0) || "",
+          ]);
+          extras.forEach((s) => aoa.push(["", s.member_name, ...cells(s)]));
+        }
+        aoa.push([
+          "",
+          "Unit total",
+          ...years.map((y) => u.counts[y] || ""),
+          ...(hasNoDate ? [u.no_date || ""] : []),
+          u.total || "",
+        ]);
+        const end = aoa.length - 1;
+        if (end > start)
+          merges.push({ s: { r: start, c: 0 }, e: { r: end, c: 0 } });
+      });
+
+      aoa.push([
+        "Grand total",
+        "",
+        ...years.map((y) => yearTotals[y] || ""),
+        ...(hasNoDate ? [noDateTotal || ""] : []),
+        visibleTotal,
+      ]);
+      merges.push({
+        s: { r: aoa.length - 1, c: 0 },
+        e: { r: aoa.length - 1, c: 1 },
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!merges"] = merges;
+      ws["!cols"] = [
+        { wch: 40 },
+        { wch: 30 },
+        ...Array.from(
+          { length: years.length + (hasNoDate ? 1 : 0) + 1 },
+          () => ({
+            wch: 10,
+          }),
+        ),
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "In progress by year");
+
+      const slug = (s) => String(s).replace(/[^\w]+/g, "_");
+      const unitLabel =
+        unitFilter.length === 1
+          ? slug(visibleUnits[0]?.unit_name || "unit")
+          : unitFilter.length > 1
+            ? "selected_units"
+            : "all_units";
+      const typeLabel =
+        (appTypeFilter.length
+          ? `_${appTypeFilter.length === 1 ? slug(appTypeFilter[0]) : "multi_types"}`
+          : "") +
+        (entryTypeFilter.length
+          ? `_${entryTypeFilter.length === 1 ? slug(entryTypeFilter[0]) : "multi_entry"}`
+          : "");
+      XLSX.writeFile(
+        wb,
+        `in_progress_by_year_${unitLabel}${typeLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Excel export failed:", err);
+      setError("Failed to export Excel.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // Grand total click: every unit currently shown in the table
   const grandDrill = (year) =>
     setDrill({
@@ -2007,7 +2274,7 @@ export default function InProgressByYearView({ darkMode }) {
             {loading ? "Refreshing…" : "↻ Refresh"}
           </button>
           <button
-            onClick={exportPdf}
+            onClick={() => setShowExport(true)}
             disabled={exporting || visibleUnits.length === 0}
             style={{
               ...btn,
@@ -2017,7 +2284,7 @@ export default function InProgressByYearView({ darkMode }) {
               opacity: exporting || visibleUnits.length === 0 ? 0.6 : 1,
             }}
           >
-            {exporting ? "Exporting…" : "⬇ Export PDF"}
+            {exporting ? "Exporting…" : "⬇ Export"}
           </button>
         </div>
       </div>
@@ -2179,6 +2446,22 @@ export default function InProgressByYearView({ darkMode }) {
           </table>
         )}
       </div>
+
+      {showExport && (
+        <ExportChoiceModal
+          colors={colors}
+          busy={exporting}
+          onClose={() => setShowExport(false)}
+          onPdf={async () => {
+            await exportPdf();
+            setShowExport(false);
+          }}
+          onExcel={async () => {
+            await exportMatrixExcel();
+            setShowExport(false);
+          }}
+        />
+      )}
 
       {drill && (
         <DrilldownModal
