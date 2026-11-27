@@ -281,6 +281,13 @@ function DrilldownModal({
 
   const isAll = drill.scope === "all"; // Grand total (several units)
   const isUnit = drill.scope === "unit" || isAll;
+  // S&E Evaluator column: only for the S&E unit and the Grand total
+  const showSE = isAll || isSEUnit({ unit_name: drill.unitName });
+  // If the row itself is at the S&E step, it is the member holding it
+  const seName = (t) =>
+    /^s&e$/i.test((t.step || "").trim())
+      ? (isUnit ? t.member_name : drill.memberName) || "—"
+      : t.se_evaluator || "—";
   const [exporting, setExporting] = useState(false);
 
   const fetchTasks = (params) =>
@@ -416,6 +423,7 @@ function DrilldownModal({
         "Processing Type": t.processing_type || "",
         Step: t.step || "",
         Status: t.status || "",
+        ...(showSE ? { "S&E Evaluator": seName(t) } : {}),
       }));
       const wsTasks = XLSX.utils.json_to_sheet(taskRows);
       wsTasks["!cols"] = Object.keys(taskRows[0]).map((k) => ({
@@ -670,6 +678,7 @@ function DrilldownModal({
                         "Processing Type",
                         "Step",
                         "Status",
+                        ...(showSE ? ["S&E Evaluator"] : []),
                         "Actions",
                       ].map((h) => (
                         <th
@@ -726,6 +735,7 @@ function DrilldownModal({
                         <td style={cell}>{t.processing_type || "—"}</td>
                         <td style={cell}>{t.step || "—"}</td>
                         <td style={cell}>{t.status || "—"}</td>
+                        {showSE && <td style={cell}>{seName(t)}</td>}
                         <td
                           style={{ padding: "8px 12px", whiteSpace: "nowrap" }}
                         >
@@ -753,7 +763,7 @@ function DrilldownModal({
                     {rows.length === 0 && !loading && (
                       <tr>
                         <td
-                          colSpan={isUnit ? 9 : 8}
+                          colSpan={(isUnit ? 9 : 8) + (showSE ? 1 : 0)}
                           style={{
                             padding: "1.25rem",
                             textAlign: "center",
@@ -1079,7 +1089,7 @@ function UnitChartCell({
         background: colors.cardBg,
       }}
     >
-      <div style={{ minHeight: 150 }} />
+      <div style={{ minHeight: 270 }} />
       <div
         style={{
           position: "absolute",
@@ -1126,143 +1136,122 @@ function UnitChartCell({
           />
         </div>
 
-        {/* ───────── BY YEAR (boxed chart) ───────── */}
+        {/* ───────── BY YEAR (horizontal ranking) ───────── */}
         {mode === "year" && (
           <div
             style={{
-              flex: 1,
-              minHeight: 0,
+              height: 190,
+              flexShrink: 0,
               display: "flex",
               flexDirection: "column",
+              justifyContent: "space-around",
+              gap: 6,
+              padding: "10px 14px",
               border: `1px solid ${colors.cardBorder}`,
               borderRadius: 10,
-              padding: "12px 14px 6px",
               background: colors.pageBg,
             }}
           >
-            <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-              {/* gridlines */}
-              {[0, 25, 50, 75].map((p) => (
-                <div
-                  key={p}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: `${p}%`,
-                    borderTop: `1px ${p === 0 ? "solid" : "dashed"} ${colors.cardBorder}`,
-                    opacity: p === 0 ? 1 : 0.6,
-                  }}
-                />
-              ))}
-              {/* bars */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "flex-end",
-                }}
-              >
-                {yearVals.map(({ y, n }, i) => {
-                  const peak = n > 0 && n === yearMax;
-                  const prev = i > 0 ? yearVals[i - 1].n : 0;
-                  const delta =
-                    prev > 0 && n > 0
-                      ? Math.round(((n - prev) / prev) * 100)
-                      : null;
-                  const label = {
-                    background: colors.pageBg, // hides the gridline behind text
-                    padding: "0 4px",
-                    borderRadius: 4,
-                    lineHeight: 1.3,
-                  };
-                  return (
-                    <div
-                      key={y}
-                      onClick={() => n > 0 && unitDrill(y)}
-                      title={`${y}: ${n}`}
+            {(() => {
+              const yearSum = yearVals.reduce((s, v) => s + v.n, 0) || 1;
+              return yearVals.map(({ y, n }, i) => {
+                const peak = n > 0 && n === yearMax;
+                const prev = i > 0 ? yearVals[i - 1].n : 0;
+                const delta =
+                  prev > 0 && n > 0
+                    ? Math.round(((n - prev) / prev) * 100)
+                    : null;
+                return (
+                  <div
+                    key={y}
+                    onClick={() => n > 0 && unitDrill(y)}
+                    title={`${y}: ${n}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px minmax(0, 1fr) 150px",
+                      alignItems: "center",
+                      gap: 10,
+                      cursor: n > 0 ? "pointer" : "default",
+                    }}
+                  >
+                    <span
                       style={{
-                        flex: 1,
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "flex-end",
-                        alignItems: "center",
-                        cursor: n > 0 ? "pointer" : "default",
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        color: colors.textSecondary,
                       }}
                     >
+                      {y}
+                    </span>
+                    <div
+                      style={{
+                        height: 16,
+                        borderRadius: 5,
+                        background: colors.rowHover,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: go ? `${(n / yearMax) * 100}%` : 0,
+                          height: "100%",
+                          borderRadius: 5,
+                          background: peak ? "#eb6834" : colors.accent,
+                          transition: `width 0.9s ${EASE} ${i * 0.1}s, filter 0.15s`,
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.filter = "brightness(1.2)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.filter = "none")
+                        }
+                      />
+                    </div>
+                    <span
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        alignItems: "baseline",
+                        gap: 6,
+                        fontSize: "0.72rem",
+                        opacity: go ? 1 : 0,
+                        transition: `opacity 0.4s ease ${0.5 + i * 0.1}s`,
+                      }}
+                    >
+                      <b
+                        style={{
+                          fontWeight: 800,
+                          color: peak ? "#eb6834" : colors.textPrimary,
+                        }}
+                      >
+                        {n || "—"}
+                      </b>
+                      <span
+                        style={{
+                          fontSize: "0.64rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        {n ? `${((n / yearSum) * 100).toFixed(1)}%` : ""}
+                      </span>
                       {delta !== null && (
                         <span
                           style={{
-                            ...label,
-                            fontSize: "0.58rem",
+                            fontSize: "0.6rem",
                             fontWeight: 700,
+                            minWidth: 38,
+                            textAlign: "right",
                             color: delta > 0 ? "#ef4444" : "#22c55e",
-                            opacity: go ? 1 : 0,
-                            transition: `opacity 0.4s ease ${0.6 + i * 0.08}s`,
                           }}
                         >
                           {delta > 0 ? "▲" : "▼"} {Math.abs(delta)}%
                         </span>
                       )}
-                      <span
-                        style={{
-                          ...label,
-                          fontSize: "0.7rem",
-                          fontWeight: 800,
-                          color: peak ? PEAK : colors.textPrimary,
-                          marginBottom: 3,
-                          opacity: go ? 1 : 0,
-                          transition: `opacity 0.4s ease ${0.5 + i * 0.08}s`,
-                        }}
-                      >
-                        {n || ""}
-                      </span>
-                      <div
-                        style={{
-                          width: "min(46%, 38px)",
-                          height: go ? `${(n / yearMax) * 66}%` : 0,
-                          minHeight: go && n > 0 ? 3 : 0,
-                          borderRadius: "7px 7px 2px 2px",
-                          background: peak
-                            ? `linear-gradient(180deg, #fbbf24, ${PEAK} 45%, #b45309)`
-                            : `linear-gradient(180deg, #60a5fa, ${colors.accent} 45%, #1d4ed8)`,
-                          boxShadow: peak
-                            ? "0 0 14px rgba(245,158,11,0.45)"
-                            : "0 0 10px rgba(59,130,246,0.25)",
-                          transition: `height 0.9s ${EASE} ${i * 0.1}s, filter 0.15s, transform 0.15s`,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.filter = "brightness(1.2)";
-                          e.currentTarget.style.transform = "scaleX(1.12)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.filter = "none";
-                          e.currentTarget.style.transform = "none";
-                        }}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div style={{ display: "flex", marginTop: 4 }}>
-              {yearVals.map(({ y }) => (
-                <span
-                  key={y}
-                  style={{
-                    flex: 1,
-                    textAlign: "center",
-                    fontSize: "0.62rem",
-                    fontWeight: 600,
-                    color: colors.textTertiary,
-                  }}
-                >
-                  {y}
-                </span>
-              ))}
-            </div>
+                    </span>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
 
@@ -1270,12 +1259,16 @@ function UnitChartCell({
         {mode === "memberyear" && (
           <div
             style={{
-              flex: 1,
-              minHeight: 0,
+              height: 190,
+              flexShrink: 0,
               display: "grid",
               gridTemplateColumns: `repeat(${years.length}, minmax(0, 1fr))`,
               gridTemplateRows: "minmax(0, 1fr)",
-              gap: 10,
+              gap: 8,
+              padding: 8,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 10,
+              background: colors.pageBg,
             }}
           >
             {perYear.map((col, ci) => (
